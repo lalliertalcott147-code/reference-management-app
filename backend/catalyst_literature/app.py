@@ -355,6 +355,7 @@ def create_app(
             ),
             "onboarding_complete": values.get("onboarding_complete", False),
             "avatar_url": avatar_store.url(),
+            "display_name": values.get("display_name", "研究者"),
             "storage": str(database.paths.root),
             "cache_limit_mb": 500,
         }
@@ -380,6 +381,11 @@ def create_app(
             )
         if request.onboarding_complete is not None:
             values.set("onboarding_complete", request.onboarding_complete)
+        if request.display_name is not None:
+            display_name = " ".join(request.display_name.split())
+            if not display_name:
+                raise HTTPException(status_code=422, detail="显示名称不能为空")
+            values.set("display_name", display_name)
         app.state.search_service = build_search_service(database)
         if local_updates is not None:
             local_updates.search_service = app.state.search_service

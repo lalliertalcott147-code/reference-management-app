@@ -12,6 +12,7 @@ class SettingsUpdate(BaseModel):
     personalization_enabled: bool | None = None
     automatic_search_daily_limit: int | None = Field(default=None, ge=1, le=50)
     onboarding_complete: bool | None = None
+    display_name: str | None = Field(default=None, min_length=1, max_length=80)
 
 
 class ResearchTopicRequest(BaseModel):

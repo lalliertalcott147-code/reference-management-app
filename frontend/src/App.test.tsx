@@ -35,6 +35,7 @@ describe("App", () => {
           automatic_search_daily_limit: 10,
           onboarding_complete: true,
           avatar_url: null,
+          display_name: "Zyyyy",
           storage: "C:/data",
           cache_limit_mb: 500,
         }), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -54,6 +55,7 @@ describe("App", () => {
   it("renders navigation and connected backend state", async () => {
     render(<App />);
     expect(await screen.findByRole("navigation", { name: "主导航" })).toBeInTheDocument();
+    expect(screen.getByText("Zyyyy")).toBeInTheDocument();
     expect(await screen.findByText(/本地服务已连接/)).toHaveTextContent("版本 0.1.0");
   });
 });

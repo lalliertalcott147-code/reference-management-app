@@ -20,6 +20,7 @@ export interface SettingsResponse {
   automatic_search_daily_limit: number;
   onboarding_complete: boolean;
   avatar_url: string | null;
+  display_name: string;
   storage: string;
   cache_limit_mb: number;
 }

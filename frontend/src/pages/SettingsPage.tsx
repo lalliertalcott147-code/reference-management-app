@@ -41,6 +41,7 @@ export function SettingsPage({ settings, onChange }: Props) {
   const [interestTerm, setInterestTerm] = useState("");
   const [interestType, setInterestType] = useState<InterestTerm["term_type"]>("positive");
   const [dailyLimit, setDailyLimit] = useState(settings.automatic_search_daily_limit);
+  const [displayName, setDisplayName] = useState(settings.display_name);
 
   useEffect(() => {
     void Promise.all([
@@ -64,6 +65,7 @@ export function SettingsPage({ settings, onChange }: Props) {
         crossref_email: email,
         personalization_enabled: settings.personalization_enabled,
         automatic_search_daily_limit: dailyLimit,
+        display_name: displayName,
       });
       onChange(updated);
       setWosKey(""); setOpenAlexKey("");
@@ -106,6 +108,9 @@ export function SettingsPage({ settings, onChange }: Props) {
 
   return <div className="page settings-page"><header className="page-header"><div><p className="eyebrow">本机设置</p><h1>设置</h1></div></header>
     <form className="settings-form" onSubmit={(event) => void submit(event)}>
+      <section className="settings-card"><h2>个人资料</h2><p>名称和头像只保存在当前电脑。</p>
+        <label>显示名称<span>显示在左上角头像旁边</span><input aria-label="显示名称" maxLength={80} required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="例如 Zyyyy" /></label>
+      </section>
       <section className="settings-card"><h2>免费检索服务</h2><p>密钥通过 Windows DPAPI 加密，浏览器只看到掩码。</p>
         <label>Web of Science Starter API Key<span>{settings.wos_api_key ? `已保存 ${settings.wos_api_key}` : "未配置"}</span><input type="password" autoComplete="off" value={wosKey} onChange={(event) => setWosKey(event.target.value)} placeholder="输入新的 Key（留空则不改）" /></label>
         <label>OpenAlex 免费 API Key<span>{settings.openalex_api_key ? `已保存 ${settings.openalex_api_key}` : "未配置"}</span><input type="password" autoComplete="off" value={openAlexKey} onChange={(event) => setOpenAlexKey(event.target.value)} placeholder="输入新的免费 Key（留空则不改）" /></label>

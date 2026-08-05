@@ -83,6 +83,30 @@ def test_avatar_upload_validates_and_persists_local_image(tmp_path: Path) -> Non
         database.close()
 
 
+def test_display_name_is_user_configurable_and_persistent(tmp_path: Path) -> None:
+    client, database = authenticated_app(tmp_path)
+    try:
+        assert client.get("/api/settings").json()["display_name"] == "研究者"
+        updated = client.put(
+            "/api/settings",
+            json={"display_name": "  Zyyyy   Researcher  "},
+            headers={"Origin": ORIGIN},
+        )
+        assert updated.status_code == 200
+        assert updated.json()["display_name"] == "Zyyyy Researcher"
+        assert client.get("/api/settings").json()["display_name"] == "Zyyyy Researcher"
+
+        blank = client.put(
+            "/api/settings",
+            json={"display_name": "   "},
+            headers={"Origin": ORIGIN},
+        )
+        assert blank.status_code == 422
+        assert client.get("/api/settings").json()["display_name"] == "Zyyyy Researcher"
+    finally:
+        database.close()
+
+
 def test_save_paper_state_library_and_detail_are_idempotent(tmp_path: Path) -> None:
     client, database = authenticated_app(tmp_path)
     request = {
