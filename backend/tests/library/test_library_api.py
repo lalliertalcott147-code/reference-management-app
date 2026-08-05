@@ -92,6 +92,35 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
             headers=headers,
         )
         assert all_card.status_code == 200
+        text_element = client.post(
+            "/api/library/workspace/elements",
+            json={
+                "element_type": "text",
+                "x": 180,
+                "y": 440,
+                "width": 280,
+                "height": 140,
+                "content": "canvas conclusion",
+                "color": "#315f59",
+            },
+            headers=headers,
+        )
+        assert text_element.status_code == 200
+        element_id = text_element.json()["id"]
+        moved_element = client.put(
+            f"/api/library-workspace/elements/{element_id}",
+            json={
+                "element_type": "text",
+                "x": 260,
+                "y": 520,
+                "width": 300,
+                "height": 160,
+                "content": "updated canvas conclusion",
+                "color": "#224466",
+            },
+            headers=headers,
+        )
+        assert moved_element.json() == {"updated": True}
         saved_workspace = client.put(
             f"/api/libraries/{library_id}/workspace",
             json={
@@ -124,6 +153,12 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
         refreshed_all = client.get("/api/library/workspace").json()
         assert refreshed_all["body"] == "all-papers synthesis"
         assert refreshed_all["cards"][0]["paper_id"] == paper_id
+        assert refreshed_all["elements"][0]["content"] == "updated canvas conclusion"
+        deleted_element = client.delete(
+            f"/api/library-workspace/elements/{element_id}", headers=headers
+        )
+        assert deleted_element.json() == {"deleted": True}
+        assert client.get("/api/library/workspace").json()["elements"] == []
         tag = client.post(
             "/api/tags",
             json={"name": "kinetics", "paper_ids": [paper_id], "library_id": library_id},

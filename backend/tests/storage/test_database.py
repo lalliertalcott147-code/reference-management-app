@@ -59,6 +59,7 @@ def test_fresh_database_has_required_pragmas_schema_and_fts(tmp_path: Path) -> N
             "jobs",
             "library_workspaces",
             "library_workspace_cards",
+            "library_workspace_elements",
         } <= tables
         core.execute(
             "INSERT INTO paper_fts(paper_id, title_original) VALUES(1, 'photocatalysis')"

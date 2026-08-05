@@ -212,6 +212,17 @@ export interface WorkspaceCard {
   notes: { id: number; body: string; updated_at: string }[];
 }
 
+export interface WorkspaceElement {
+  id: number;
+  element_type: "text" | "line";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  content: string;
+  color: string;
+}
+
 export interface LibraryWorkspace {
   library_id: number | null;
   body: string;
@@ -222,6 +233,7 @@ export interface LibraryWorkspace {
   version: number;
   updated_at: string;
   cards: WorkspaceCard[];
+  elements: WorkspaceElement[];
 }
 
 export interface ModelStatus {
@@ -589,6 +601,29 @@ export function updateWorkspaceCard(
 
 export function deleteWorkspaceCard(cardId: number): Promise<{ deleted: boolean }> {
   return request(`/api/library-workspace/cards/${cardId}`, { method: "DELETE" });
+}
+
+export function addWorkspaceElement(
+  libraryId: number | undefined,
+  element: Omit<WorkspaceElement, "id">,
+): Promise<{ id: number }> {
+  const path = libraryId === undefined
+    ? "/api/library/workspace/elements"
+    : `/api/libraries/${libraryId}/workspace/elements`;
+  return request(path, jsonInit("POST", element));
+}
+
+export function updateWorkspaceElement(
+  element: WorkspaceElement,
+): Promise<{ updated: boolean }> {
+  return request(
+    `/api/library-workspace/elements/${element.id}`,
+    jsonInit("PUT", element),
+  );
+}
+
+export function deleteWorkspaceElement(elementId: number): Promise<{ deleted: boolean }> {
+  return request(`/api/library-workspace/elements/${elementId}`, { method: "DELETE" });
 }
 
 export async function exportPapers(paperIds: number[], format: "bibtex" | "ris" | "csv"): Promise<void> {

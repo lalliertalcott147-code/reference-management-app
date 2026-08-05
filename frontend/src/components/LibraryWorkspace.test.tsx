@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryWorkspace } from "./LibraryWorkspace";
 
@@ -12,6 +12,7 @@ describe("LibraryWorkspace", () => {
     note_height: 260,
     version: 1,
     updated_at: "2026-08-06T00:00:00Z",
+    elements: [],
     cards: [{
       id: 8,
       paper_id: 7,
@@ -38,11 +39,23 @@ describe("LibraryWorkspace", () => {
     if (url === "/api/library-workspace/cards/8") {
       return Promise.resolve(new Response(JSON.stringify({ updated: true }), { status: 200 }));
     }
+    if (url === "/api/libraries/1/workspace/elements" && init?.method === "POST") {
+      if (typeof init.body !== "string") throw new Error("Expected a JSON request body");
+      const body = JSON.parse(init.body) as { element_type: "text" | "line" };
+      return Promise.resolve(new Response(JSON.stringify({
+        id: body.element_type === "text" ? 21 : 22,
+      }), { status: 200 }));
+    }
+    if (url.startsWith("/api/library-workspace/elements/")) {
+      return Promise.resolve(new Response(JSON.stringify(
+        init?.method === "DELETE" ? { deleted: true } : { updated: true },
+      ), { status: 200 }));
+    }
     return Promise.resolve(new Response("{}", { status: 200 }));
   });
 
   beforeEach(() => vi.stubGlobal("fetch", fetchMock));
-  afterEach(() => { vi.unstubAllGlobals(); fetchMock.mockClear(); });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); fetchMock.mockClear(); });
 
   it("shows article context, autosaves the global note, and persists card dragging", async () => {
     render(<LibraryWorkspace libraryId={1} papers={[]} />);
@@ -70,6 +83,53 @@ describe("LibraryWorkspace", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/library-workspace/cards/8",
       expect.objectContaining({ method: "PUT" }),
+    ));
+  });
+
+  it("adds, edits, moves, and deletes text and line elements from the side toolbar", async () => {
+    render(<LibraryWorkspace libraryId={1} papers={[]} />);
+    await screen.findByRole("heading", { name: "Catalyst design" });
+    const canvas = document.querySelector(".workspace-canvas") as HTMLElement;
+
+    fireEvent.click(screen.getByRole("button", { name: "添加文字" }));
+    fireEvent.click(canvas, { clientX: 320, clientY: 440 });
+    const text = await screen.findByRole("textbox", { name: "文字元素 21" });
+    fireEvent.change(text, { target: { value: "可自由移动的研究结论" } });
+    fireEvent.blur(text);
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => (
+        input === "/api/library-workspace/elements/21" && init?.method === "PUT"
+      ));
+      expect(call).toBeDefined();
+      const body = call?.[1]?.body;
+      expect(typeof body).toBe("string");
+      expect(body).toContain("可自由移动的研究结论");
+    });
+
+    const textHandle = screen.getByText("文字 · 拖动");
+    fireEvent.pointerDown(textHandle, { pointerId: 2, clientX: 320, clientY: 440 });
+    fireEvent.pointerMove(canvas, { clientX: 410, clientY: 500 });
+    fireEvent.pointerUp(canvas);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/library-workspace/elements/21",
+      expect.objectContaining({ method: "PUT" }),
+    ));
+
+    fireEvent.click(screen.getByRole("button", { name: "添加直线" }));
+    fireEvent.click(canvas, { clientX: 500, clientY: 600 });
+    const line = await screen.findByRole("button", { name: "直线元素 22" });
+    fireEvent.pointerDown(line, { pointerId: 3, clientX: 500, clientY: 600 });
+    fireEvent.pointerMove(canvas, { clientX: 560, clientY: 640 });
+    fireEvent.pointerUp(canvas);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/library-workspace/elements/22",
+      expect.objectContaining({ method: "PUT" }),
+    ));
+    fireEvent.click(line);
+    fireEvent.click(screen.getByRole("button", { name: "删除选中" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/library-workspace/elements/22",
+      { method: "DELETE", credentials: "same-origin" },
     ));
   });
 });

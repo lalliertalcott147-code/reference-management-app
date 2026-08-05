@@ -196,11 +196,31 @@ h2 { color: #214b46; }
 .subscription-list .danger-link, .error-text { color: var(--danger); }
 .journal-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }.journal-card { overflow: hidden; border: 1px solid #dbe7e3; border-radius: 13px; background: #f8fbfa; transition: border-color .15s, transform .15s; }.journal-card:hover, .journal-card.selected { border-color: var(--teal-500); transform: translateY(-1px); }.journal-card-main { width: 100%; display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 11px; padding: 15px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }.journal-card-main:disabled { cursor: wait; }.journal-card-main > span:nth-child(2) { min-width: 0; }.journal-card-main h3, .journal-card-main p { margin: 0; }.journal-card-main h3 { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }.journal-card-main p, .journal-card-main strong { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }.journal-card-main strong { color: var(--teal-700); }.journal-card-main em { grid-column: 2; color: var(--teal-700); font-size: 11px; font-style: normal; }.journal-monogram { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; background: var(--teal-700); color: white; font-family: Georgia, serif; font-size: 22px; font-weight: 700; }.journal-card > label { display: block; padding: 9px 15px; border-top: 1px solid #e1ebe8; color: var(--muted); font-size: 11px; }.journal-latest { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }.journal-latest .section-heading > button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--teal-700); cursor: pointer; }.journal-paper-list { display: grid; gap: 8px; }.journal-paper-list article { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; padding: 13px; border: 1px solid #e1eae7; border-radius: 10px; background: #f9fbfa; }.journal-paper-list h3, .journal-paper-list p { margin: 0 0 5px; }.journal-paper-list h3 { font-size: 14px; }.journal-paper-list p { display: -webkit-box; overflow: hidden; font-size: 11px; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }.journal-paper-list a { flex: none; color: var(--teal-700); font-size: 11px; }
 
+.workspace-board { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: start; }
+.workspace-toolbox { position: sticky; top: 12px; z-index: 20; display: grid; gap: 7px; padding: 10px 8px; border: 1px solid #cbdad6; border-radius: 12px; background: #f7faf9; box-shadow: 0 6px 16px rgb(22 62 57 / 8%); }
+.workspace-toolbox strong { padding: 2px 4px 5px; color: var(--teal-700); font-size: 12px; }
+.workspace-toolbox button { display: grid; place-items: center; gap: 2px; min-height: 54px; padding: 6px 3px; border: 1px solid var(--line); border-radius: 8px; background: white; color: #50635f; font-size: 10px; cursor: pointer; }
+.workspace-toolbox button span { font-size: 19px; line-height: 1; }
+.workspace-toolbox button.active { border-color: var(--teal-700); background: #e3f0ed; color: var(--teal-700); }
+.workspace-toolbox button:disabled { opacity: .4; cursor: not-allowed; }
+.workspace-toolbox small { color: var(--muted); font-size: 9px; line-height: 1.4; text-align: center; }
+.workspace-canvas.tool-text, .workspace-canvas.tool-line { cursor: crosshair; }
+.workspace-text-element { position: absolute; z-index: 3; display: flex; flex-direction: column; overflow: hidden; border: 2px solid; border-radius: 9px; background: #fffef7; box-shadow: 0 5px 14px rgb(22 62 57 / 10%); }
+.workspace-text-element.selected, .workspace-line-element.selected { outline: 3px solid rgb(47 151 137 / 28%); outline-offset: 2px; }
+.workspace-text-element header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: #eef5f3; color: var(--teal-700); font-size: 10px; font-weight: 700; cursor: grab; touch-action: none; user-select: none; }
+.workspace-text-element header button { border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.workspace-text-element textarea { flex: 1; resize: none; padding: 9px; border: 0; outline: none; background: transparent; line-height: 1.55; }
+.workspace-text-element label { display: flex; justify-content: flex-end; align-items: center; gap: 5px; padding: 3px 7px; color: var(--muted); font-size: 9px; }
+.workspace-text-element input[type="color"] { width: 24px; height: 18px; padding: 0; border: 0; background: transparent; }
+.workspace-line-element { position: absolute; z-index: 2; padding: 0; border: 0; background: transparent; cursor: grab; touch-action: none; }
+.workspace-line-element svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
 @media (max-width: 980px) {
   .shell { grid-template-columns: 82px minmax(0, 1fr); }
   .sidebar { padding-inline: 12px; }.brand > span:last-child, .sidebar nav a:not(.active) { font-size: 0; }.sidebar nav a { justify-content: center; padding-inline: 8px; }.sidebar nav a.active { font-size: 11px; flex-direction: column; gap: 2px; }.local-badge > span:last-child { display: none; }.local-badge { justify-content: center; }
   .hero { grid-template-columns: 1fr; }.molecule-card { display: none; }.dashboard-grid { grid-template-columns: 1fr; }
   .library-layout { grid-template-columns: 180px minmax(0, 1fr); }
+  .workspace-board { grid-template-columns: 82px minmax(0, 1fr); }
   .guide-card { grid-template-columns: auto 1fr; }.metric-grid { grid-template-columns: repeat(3, 1fr); }
 }
 

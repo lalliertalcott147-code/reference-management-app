@@ -21,6 +21,7 @@ describe("LibraryPage", () => {
         version: 1,
         updated_at: "2026-08-06T00:00:00Z",
         cards: [],
+        elements: [],
       }), { status: 200, headers: { "Content-Type": "application/json" } }));
     }
     if (url.startsWith("/api/libraries")) {

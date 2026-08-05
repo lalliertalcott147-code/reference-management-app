@@ -401,6 +401,7 @@ class LibraryService:
             "version": int(row[5]),
             "updated_at": str(row[6]),
             "cards": self._workspace_cards(workspace_id, library_id),
+            "elements": self._workspace_elements(workspace_id),
         }
 
     def save_workspace(
@@ -488,6 +489,76 @@ class LibraryService:
         self.connection.execute("DELETE FROM library_workspace_cards WHERE id=?", (card_id,))
         if self.connection.changes() == 0:
             raise LookupError("Workspace card not found")
+
+    def create_workspace_element(
+        self,
+        library_id: int | None,
+        *,
+        element_type: str,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        content: str,
+        color: str,
+    ) -> int:
+        if element_type not in {"text", "line"}:
+            raise ValueError("Unsupported workspace element type")
+        workspace_id = self._get_or_create_workspace_id(library_id)
+        now = utc_now()
+        self.connection.execute(
+            """
+            INSERT INTO library_workspace_elements(
+                workspace_id, element_type, x, y, width, height,
+                content, color, created_at, updated_at
+            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                workspace_id,
+                element_type,
+                x,
+                y,
+                width,
+                height,
+                content,
+                color,
+                now,
+                now,
+            ),
+        )
+        return int(self.connection.last_insert_rowid())
+
+    def update_workspace_element(
+        self,
+        element_id: int,
+        *,
+        element_type: str,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        content: str,
+        color: str,
+    ) -> None:
+        if element_type not in {"text", "line"}:
+            raise ValueError("Unsupported workspace element type")
+        self.connection.execute(
+            """
+            UPDATE library_workspace_elements SET
+                element_type=?, x=?, y=?, width=?, height=?, content=?,
+                color=?, updated_at=? WHERE id=?
+            """,
+            (element_type, x, y, width, height, content, color, utc_now(), element_id),
+        )
+        if self.connection.changes() == 0:
+            raise LookupError("Workspace element not found")
+
+    def delete_workspace_element(self, element_id: int) -> None:
+        self.connection.execute(
+            "DELETE FROM library_workspace_elements WHERE id=?", (element_id,)
+        )
+        if self.connection.changes() == 0:
+            raise LookupError("Workspace element not found")
 
     def _require_active_library(self, library_id: int) -> None:
         if self.connection.execute(
@@ -581,6 +652,28 @@ class LibraryService:
                 }
             )
         return cards
+
+    def _workspace_elements(self, workspace_id: int) -> list[dict[str, object]]:
+        return [
+            {
+                "id": int(row[0]),
+                "element_type": str(row[1]),
+                "x": float(row[2]),
+                "y": float(row[3]),
+                "width": float(row[4]),
+                "height": float(row[5]),
+                "content": str(row[6]),
+                "color": str(row[7]),
+            }
+            for row in self.connection.execute(
+                """
+                SELECT id, element_type, x, y, width, height, content, color
+                FROM library_workspace_elements
+                WHERE workspace_id=? ORDER BY id
+                """,
+                (workspace_id,),
+            )
+        ]
 
     def export(self, paper_ids: list[int], format_name: str) -> tuple[str, bytes]:
         if not paper_ids:

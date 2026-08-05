@@ -219,6 +219,43 @@ def test_global_note_workspace_cards_collect_article_context_and_persist_layout(
         )
         assert service.get_workspace(library_id)["body"] == "overall synthesis"
         assert service.get_workspace(second_library)["body"] == "project B synthesis"
+
+        text_id = service.create_workspace_element(
+            None,
+            element_type="text",
+            x=180,
+            y=460,
+            width=280,
+            height=150,
+            content="movable conclusion",
+            color="#315f59",
+        )
+        line_id = service.create_workspace_element(
+            library_id,
+            element_type="line",
+            x=200,
+            y=520,
+            width=240,
+            height=20,
+            content="",
+            color="#C86B45",
+        )
+        service.update_workspace_element(
+            text_id,
+            element_type="text",
+            x=260,
+            y=540,
+            width=300,
+            height=160,
+            content="updated movable conclusion",
+            color="#224466",
+        )
+        all_element = service.get_workspace(None)["elements"][0]
+        assert all_element["content"] == "updated movable conclusion"
+        assert (all_element["x"], all_element["y"]) == (260.0, 540.0)
+        assert service.get_workspace(library_id)["elements"][0]["id"] == line_id
+        service.delete_workspace_element(line_id)
+        assert service.get_workspace(library_id)["elements"] == []
     finally:
         manager.close()
 

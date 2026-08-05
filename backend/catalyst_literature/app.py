@@ -27,6 +27,8 @@ from .api_models import (
     LibraryPaperAddRequest,
     LibraryWorkspaceCardCreate,
     LibraryWorkspaceCardUpdate,
+    LibraryWorkspaceElementCreate,
+    LibraryWorkspaceElementUpdate,
     LibraryWorkspaceRequest,
     ModelDownloadRequest,
     NoteAppendRequest,
@@ -900,6 +902,36 @@ def create_app(
         except (ValueError, apsw.ConstraintError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
+    def create_workspace_element(
+        library_id: int | None, request: LibraryWorkspaceElementCreate
+    ) -> dict[str, int]:
+        try:
+            element_id = library_service().create_workspace_element(
+                library_id,
+                element_type=request.element_type,
+                x=request.x,
+                y=request.y,
+                width=request.width,
+                height=request.height,
+                content=request.content,
+                color=request.color,
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"id": element_id}
+
+    @app.post("/api/libraries/{library_id}/workspace/elements")
+    def add_library_workspace_element(
+        library_id: int, request: LibraryWorkspaceElementCreate
+    ) -> dict[str, int]:
+        return create_workspace_element(library_id, request)
+
+    @app.post("/api/library/workspace/elements")
+    def add_all_papers_workspace_element(
+        request: LibraryWorkspaceElementCreate,
+    ) -> dict[str, int]:
+        return create_workspace_element(None, request)
+
     @app.put("/api/library-workspace/cards/{card_id}")
     def update_library_workspace_card(
         card_id: int, request: LibraryWorkspaceCardUpdate
@@ -920,6 +952,33 @@ def create_app(
     def delete_library_workspace_card(card_id: int) -> dict[str, bool]:
         try:
             library_service().delete_workspace_card(card_id)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"deleted": True}
+
+    @app.put("/api/library-workspace/elements/{element_id}")
+    def update_library_workspace_element(
+        element_id: int, request: LibraryWorkspaceElementUpdate
+    ) -> dict[str, bool]:
+        try:
+            library_service().update_workspace_element(
+                element_id,
+                element_type=request.element_type,
+                x=request.x,
+                y=request.y,
+                width=request.width,
+                height=request.height,
+                content=request.content,
+                color=request.color,
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"updated": True}
+
+    @app.delete("/api/library-workspace/elements/{element_id}")
+    def delete_library_workspace_element(element_id: int) -> dict[str, bool]:
+        try:
+            library_service().delete_workspace_element(element_id)
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         return {"deleted": True}

@@ -120,6 +120,20 @@ class LibraryWorkspaceCardUpdate(BaseModel):
     height: float = Field(ge=220, le=2_000)
 
 
+class LibraryWorkspaceElementCreate(BaseModel):
+    element_type: Literal["text", "line"]
+    x: float = Field(ge=0, le=50_000)
+    y: float = Field(ge=0, le=50_000)
+    width: float = Field(ge=40, le=5_000)
+    height: float = Field(ge=4, le=2_000)
+    content: str = Field(default="", max_length=200_000)
+    color: str = Field(default="#315f59", pattern=r"^#[0-9A-Fa-f]{6}$")
+
+
+class LibraryWorkspaceElementUpdate(LibraryWorkspaceElementCreate):
+    pass
+
+
 class ExportRequest(BaseModel):
     paper_ids: list[int] = Field(min_length=1)
     format: Literal["bibtex", "ris", "csv"]

@@ -513,6 +513,28 @@ CORE_MIGRATIONS = (
             ON library_workspace_cards(workspace_id, id);
         """,
     ),
+    Migration(
+        9,
+        "workspace_canvas_elements",
+        """
+        CREATE TABLE library_workspace_elements (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL
+                REFERENCES library_workspaces(id) ON DELETE CASCADE,
+            element_type TEXT NOT NULL CHECK(element_type IN ('text', 'line')),
+            x REAL NOT NULL CHECK(x >= 0),
+            y REAL NOT NULL CHECK(y >= 0),
+            width REAL NOT NULL CHECK(width >= 40),
+            height REAL NOT NULL CHECK(height >= 4),
+            content TEXT NOT NULL DEFAULT '',
+            color TEXT NOT NULL DEFAULT '#315f59',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX library_workspace_elements_workspace_idx
+            ON library_workspace_elements(workspace_id, id);
+        """,
+    ),
 )
 
 
