@@ -36,6 +36,16 @@ class FixtureSearch:
             (SourceStatus("wos", "success", "fixed E2E response"),),
         )
 
+    def search_variants(
+        self,
+        queries: tuple[SearchQuery, ...],
+        *,
+        refresh: bool = False,
+    ) -> CombinedSearchResult:
+        if not queries:
+            raise ValueError("At least one E2E query is required")
+        return self.search(queries[0], refresh=refresh)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
