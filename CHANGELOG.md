@@ -13,7 +13,9 @@
 
 ### Added
 
-- Windows 本地浏览器 App、单实例启动、一次性会话和标签页空闲退出。
+- pywebview 与 Microsoft Edge WebView2 驱动的 Windows 独立桌面窗口；主界面不再占用浏览器标签页。
+- 关闭窗口时安全停止本地服务，以及重复启动时恢复并聚焦已有窗口。
+- Windows 本地 App、单实例启动、一次性会话和页面心跳异常兜底退出。
 - APSW SQLite 永久存储、前向迁移、数据库备份、DPAPI 密钥和 500 MB 缓存控制。
 - WoS Starter、OpenAlex、Crossref 检索适配器与 WoS Plain Text/RIS/XLSX 导入。
 - 文献详情、多知识库、标签、状态、笔记、本地检索和 BibTeX/RIS/CSV 导出。

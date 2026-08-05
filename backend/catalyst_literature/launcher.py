@@ -5,8 +5,9 @@ import json
 import os
 import socket
 import tempfile
+import threading
 import time
-import webbrowser
+from collections.abc import Callable
 from ctypes import wintypes
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ import uvicorn
 
 from .app import create_app
 from .config import AppPaths, AppSettings
+from .desktop import run_desktop_window
 from .logging_setup import configure_logging
 from .processes import ChildProcessJob
 from .runtime_resources import resource_path
@@ -71,13 +73,67 @@ def atomic_json_write(path: Path, payload: dict[str, Any]) -> None:
             os.unlink(temporary_name)
 
 
-def open_existing(runtime_file: Path) -> bool:
+def focus_process_window(pid: int) -> bool:
+    """Restore and focus the visible top-level window owned by ``pid``."""
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    matches: list[int] = []
+
+    def visit(window: int, _parameter: int) -> bool:
+        process_id = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(wintypes.HWND(window), ctypes.byref(process_id))
+        if process_id.value == pid and user32.IsWindowVisible(wintypes.HWND(window)):
+            matches.append(window)
+            return False
+        return True
+
+    callback = callback_type(visit)
+    user32.EnumWindows(callback, 0)
+    if not matches:
+        return False
+    window = wintypes.HWND(matches[0])
+    user32.ShowWindow(window, 9)  # SW_RESTORE
+    user32.SetForegroundWindow(window)
+    return True
+
+
+def focus_existing(
+    runtime_file: Path,
+    focus: Callable[[int], bool] | None = None,
+) -> bool:
     try:
         payload = json.loads(runtime_file.read_text(encoding="utf-8"))
-        origin = str(payload["origin"])
+        pid = int(payload["pid"])
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         return False
-    return webbrowser.open(origin)
+    if pid <= 0:
+        return False
+    return (focus or focus_process_window)(pid)
+
+
+def open_existing(runtime_file: Path) -> bool:
+    """Backward-compatible name for focusing the single desktop instance."""
+
+    return focus_existing(runtime_file)
+
+
+def wait_for_server(
+    server: uvicorn.Server,
+    thread: threading.Thread,
+    failures: list[BaseException],
+    *,
+    timeout_seconds: float = 30.0,
+) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while not server.started:
+        if failures:
+            raise RuntimeError("The local server failed during startup") from failures[0]
+        if not thread.is_alive():
+            raise RuntimeError("The local server stopped during startup")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("The local server did not become ready in time")
+        time.sleep(0.05)
 
 
 def frontend_dist() -> Path:
@@ -92,7 +148,10 @@ def run() -> int:
 
     with SingleInstance() as instance:
         if not instance.is_primary:
-            open_existing(runtime_file)
+            for _attempt in range(20):
+                if focus_existing(runtime_file):
+                    break
+                time.sleep(0.1)
             return 0
 
         bound_socket = bind_loopback_socket()
@@ -146,14 +205,54 @@ def run() -> int:
                 )
                 server = uvicorn.Server(config)
                 server_holder["server"] = server
-                atomic_json_write(
-                    runtime_file,
-                    {"pid": os.getpid(), "origin": origin, "started_at": time.time()},
-                )
                 launch_url = f"{origin}/launch?token={quote(sessions.launch_token)}"
-                if os.environ.get("CATALYST_NO_BROWSER") != "1":
-                    webbrowser.open(launch_url)
-                server.run(sockets=[bound_socket])
+                runtime_payload = {
+                    "pid": os.getpid(),
+                    "origin": origin,
+                    "started_at": time.time(),
+                    "window_mode": "desktop",
+                }
+                headless = (
+                    os.environ.get("CATALYST_NO_WINDOW") == "1"
+                    or os.environ.get("CATALYST_NO_BROWSER") == "1"
+                )
+                if headless:
+                    runtime_payload["window_mode"] = "headless"
+                    atomic_json_write(runtime_file, runtime_payload)
+                    server.run(sockets=[bound_socket])
+                else:
+                    failures: list[BaseException] = []
+
+                    def serve() -> None:
+                        try:
+                            server.run(sockets=[bound_socket])
+                        except BaseException as error:
+                            failures.append(error)
+
+                    server_thread = threading.Thread(
+                        target=serve,
+                        name="catalyst-local-server",
+                        daemon=True,
+                    )
+                    server_thread.start()
+                    try:
+                        wait_for_server(server, server_thread, failures)
+                        atomic_json_write(runtime_file, runtime_payload)
+                        run_desktop_window(
+                            launch_url,
+                            storage_path=paths.root / "webview",
+                            on_closed=request_shutdown,
+                        )
+                    finally:
+                        request_shutdown()
+                        server_thread.join(timeout=15)
+                        if server_thread.is_alive():
+                            server.force_exit = True
+                            server_thread.join(timeout=5)
+                        if server_thread.is_alive():
+                            raise RuntimeError("The local server did not stop with the window")
+                    if failures:
+                        raise RuntimeError("The local server stopped unexpectedly") from failures[0]
         finally:
             bound_socket.close()
             database.close()

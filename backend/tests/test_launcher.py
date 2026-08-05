@@ -4,7 +4,12 @@ import json
 import uuid
 from pathlib import Path
 
-from catalyst_literature.launcher import SingleInstance, atomic_json_write, bind_loopback_socket
+from catalyst_literature.launcher import (
+    SingleInstance,
+    atomic_json_write,
+    bind_loopback_socket,
+    focus_existing,
+)
 
 
 def test_bound_socket_is_loopback_and_uses_random_port() -> None:
@@ -42,3 +47,22 @@ def test_atomic_runtime_state_never_leaves_temporary_file(tmp_path: Path) -> Non
     atomic_json_write(target, {"pid": 123, "origin": "http://127.0.0.1:4567"})
     assert json.loads(target.read_text(encoding="utf-8"))["pid"] == 123
     assert list(target.parent.glob("*.tmp")) == []
+
+
+def test_existing_instance_focuses_pid_from_runtime_state(tmp_path: Path) -> None:
+    runtime_file = tmp_path / "server.json"
+    runtime_file.write_text(
+        json.dumps({"pid": 4321, "origin": "http://127.0.0.1:4567"}),
+        encoding="utf-8",
+    )
+    focused: list[int] = []
+
+    assert focus_existing(runtime_file, lambda pid: focused.append(pid) is None) is True
+    assert focused == [4321]
+
+
+def test_existing_instance_rejects_invalid_runtime_state(tmp_path: Path) -> None:
+    runtime_file = tmp_path / "server.json"
+    runtime_file.write_text('{"pid": 0}', encoding="utf-8")
+
+    assert focus_existing(runtime_file, lambda _pid: True) is False

@@ -25,6 +25,26 @@ def test_startup_failure_creates_readable_escaped_diagnostic(
     assert "port <unavailable>" not in content
 
 
+def test_startup_failure_uses_native_notifier_in_desktop_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = AppPaths.from_root(tmp_path / "data")
+    monkeypatch.delenv("CATALYST_NO_WINDOW", raising=False)
+    monkeypatch.delenv("CATALYST_NO_BROWSER", raising=False)
+    notices: list[tuple[Path, str]] = []
+
+    def fail() -> int:
+        raise RuntimeError("webview unavailable")
+
+    def notify(page: Path, error: Exception) -> bool:
+        notices.append((page, str(error)))
+        return True
+
+    assert main(fail, lambda: paths, notify) == 1
+    assert notices == [(paths.runtime / "startup-error.html", "webview unavailable")]
+
+
 def test_shortcut_script_creates_a_windows_link_in_requested_directory(
     tmp_path: Path,
 ) -> None:

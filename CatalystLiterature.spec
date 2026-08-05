@@ -25,9 +25,10 @@ hiddenimports = [
     "paddle.base.core",
     "paddle.framework",
     "paddle.inference",
+    "webview.platforms.edgechromium",
 ]
 
-for package in ("pypdfium2", "apsw"):
+for package in ("pypdfium2", "apsw", "webview"):
     package_datas, package_binaries, package_hidden = collect_all(package)
     datas += package_datas
     binaries += package_binaries
@@ -59,7 +60,19 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib.tests", "numpy.tests"],
+    excludes=[
+        "tkinter",
+        "matplotlib.tests",
+        "numpy.tests",
+        "webview.platforms.cef",
+        "webview.platforms.gtk",
+        "webview.platforms.qt",
+        "cefpython3",
+        "PyQt5",
+        "PyQt6",
+        "PySide2",
+        "PySide6",
+    ],
     noarchive=False,
     optimize=1,
 )

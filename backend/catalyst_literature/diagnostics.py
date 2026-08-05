@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import html
 import os
 import sys
@@ -9,6 +10,20 @@ from pathlib import Path
 
 from .config import AppPaths
 from .launcher import run
+
+
+def show_startup_error(page: Path, error: Exception) -> bool:
+    try:
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        message = (
+            "催化文献未能启动。\n\n"
+            f"{str(error) or type(error).__name__}\n\n"
+            f"诊断文件: {page}"
+        )
+        user32.MessageBoxW(None, message, "催化文献启动失败", 0x10)
+        return True
+    except Exception:
+        return False
 
 
 def write_startup_diagnostic(paths: AppPaths, error: Exception) -> Path:
@@ -31,13 +46,18 @@ def write_startup_diagnostic(paths: AppPaths, error: Exception) -> Path:
 def main(
     runner: Callable[[], int] = run,
     paths_factory: Callable[[], AppPaths] = AppPaths.default,
+    notifier: Callable[[Path, Exception], bool] = show_startup_error,
 ) -> int:
     try:
         return runner()
     except Exception as error:
         try:
             page = write_startup_diagnostic(paths_factory(), error)
-            if os.environ.get("CATALYST_NO_BROWSER") != "1":
+            headless = (
+                os.environ.get("CATALYST_NO_WINDOW") == "1"
+                or os.environ.get("CATALYST_NO_BROWSER") == "1"
+            )
+            if not headless and not notifier(page, error):
                 webbrowser.open(page.as_uri())
             print(f"Catalyst Literature failed to start. Details: {page}", file=sys.stderr)
         except Exception:

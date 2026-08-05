@@ -4,18 +4,18 @@
 
 ## 总体结果
 
-M0～M11 的产品代码、自动化测试、Windows 打包脚本、安装包和用户说明均已完成。最终统一验证入口：
+M0～M12 的产品代码、自动化测试、Windows 打包脚本、安装包和用户说明均已完成。最终统一验证入口：
 
     powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -PackageRoot .\build\release\CatalystLiterature-0.1.0
 
 最终结果：
 
 - Ruff：通过。
-- Mypy strict：52 个后端源码文件通过。
-- Python：108 passed，0 failed，0 skipped。
+- Mypy strict：53 个后端源码文件通过。
+- Python：114 passed，0 failed，0 skipped。
 - 前端：ESLint、TypeScript、生产构建通过；9 个测试文件、9 项测试通过。
 - 浏览器 E2E：检索、保存、关闭后端、重新启动、知识库数据持久化通过。
-- Windows 安装冒烟：原生依赖自检、安装、快捷方式、两次启动、健康检查、空闲退出、卸载和默认保留数据通过。
+- Windows 安装冒烟：原生依赖自检、安装、快捷方式、无头健康检查、空闲退出、WebView2 原生窗口、单实例聚焦、关闭窗口安全退出、卸载和默认保留数据通过。
 - 发布包内冻结运行时：APSW、PDFium、Paddle CPU、PaddleOCR 加载通过；隔离 PDF 工作进程读取真实 PDF 通过。
 
 ## 里程碑状态
@@ -23,7 +23,7 @@ M0～M11 的产品代码、自动化测试、Windows 打包脚本、安装包和
 | 里程碑 | 状态 | 已实现与验证内容 |
 |---|---|---|
 | M0 基线确认与技术预检 | 已完成 | APSW/FTS5/WAL、PDFium、PDF.js、PP-OCRv6、llama.cpp、PyInstaller 和模型清单均有运行探针或固定测试。 |
-| M1 工程骨架、启动器与生命周期 | 已完成 | 随机回环端口、单实例、一次性启动令牌、同源会话、标签页心跳、约两分钟空闲退出、Windows Job Object、快捷方式和启动诊断。 |
+| M1 工程骨架、启动器与生命周期 | 已完成 | 随机回环端口、单实例、一次性启动令牌、同源会话、页面心跳、约两分钟异常兜底退出、Windows Job Object、快捷方式和启动诊断。 |
 | M2 本地存储、迁移、备份与缓存 | 已完成 | `core.db`/`cache.db`、WAL、六版前向迁移、升级前备份、DPAPI、可恢复任务、日志脱敏、450/500 MB LRU 与永久数据保护。 |
 | M3 三通道检索与文献合并 | 开发完成 | WoS Starter、OpenAlex、Crossref、缓存、离线、分页、退避、配额、去重、字段来源和冲突保留；固定官方响应契约通过，Crossref 真实请求通过。 |
 | M4 WoS 官方文件导入 | 已完成 | Plain Text、RIS、XLSX 的签名/大小校验、预览、错误报告、幂等导入和来源合并。 |
@@ -34,13 +34,14 @@ M0～M11 的产品代码、自动化测试、Windows 打包脚本、安装包和
 | M9 PDF 阅读器与批注 | 已完成 | 本地 PDF.js 懒加载阅读、缩放/跳页/搜索/续读、高亮、划线、批注、笔记双向关联；不修改原 PDF。 |
 | M10 推荐与更新 | 已完成 | 可解释规则推荐、主题和正负关键词、期刊关注、保存检索、去重新结果、App 内提醒、每日自动限额；调度器仅在 App 生命周期内运行。 |
 | M11 安全与发布 | 已完成工程验收 | CSP/同源/安全响应头、异常事务/迁移/500 MB 压力/导入模糊/3,000 篇性能测试、无网络回退、Windows 无控制台包、安装/卸载与许可证清单。 |
+| M12 独立桌面窗口 | 已完成 | pywebview 6.2.1 + Edge WebView2 独立窗口、持久窗口存储、系统浏览器外链、FastAPI 后台线程、窗口关闭安全退出、重复启动恢复聚焦、原生错误提示和安装包窗口冒烟。 |
 
 ## 数据和运行边界
 
 - 永久数据位于 `%LOCALAPPDATA%\CatalystLiterature`；刷新、关闭和再次启动不删除设置、文献、译文、知识库、收藏、笔记、PDF 或批注。
 - 原始 PDF 和本地模型不属于缓存，清理 500 MB 缓存不会删除它们。
 - 内置数据库备份不包含 PDF；卸载默认保留全部用户数据，永久删除必须同时提供两个确认参数。
-- App、OCR 和翻译服务只监听本机；最后一个标签页离开并经过空闲时间后退出，不安装常驻服务或计划任务。
+- App、OCR 和翻译服务只监听本机；关闭 App 窗口后安全退出，页面心跳空闲机制仅用于窗口异常消失时兜底，不安装常驻服务或计划任务。
 
 ## 仍需外部条件参与的验收
 
@@ -55,4 +56,4 @@ M0～M11 的产品代码、自动化测试、Windows 打包脚本、安装包和
 - 发布物属于本地构建输出或托管平台 Release 附件，不纳入 Git 源码提交。
 - 目录：`build/release/CatalystLiterature-0.1.0/`
 - ZIP：`build/release/CatalystLiterature-0.1.0-windows-x64.zip`
-- ZIP SHA-256：`DDA4462A3F34CC8181E713006115B9FA0C713C74A836443FEFE4CDA8921CAC24`
+- ZIP SHA-256：`510265015073916CC209E272360006389B2D05494DA3BEE77A2FDDB8DF05CCCE`

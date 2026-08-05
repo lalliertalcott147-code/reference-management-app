@@ -3,5 +3,6 @@ fastapi==0.139.2
 httpx2==2.7.0
 openpyxl==3.1.5
 python-multipart==0.0.32
+pywebview==6.2.1
 types-openpyxl==3.1.5.20260518
 uvicorn==0.51.0

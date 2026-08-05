@@ -44,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 `
   -PackageRoot .\build\release\CatalystLiterature-0.1.0
 ```
 
-冒烟测试必须通过原生依赖自检、临时目录安装、快捷方式、两次启动、健康检查、空闲退出、卸载和默认保留数据。发布前还应在一台没有开发环境的 Windows 电脑上人工复验安装、打开浏览器、导入、PDF 阅读和再次启动。
+冒烟测试必须通过原生依赖自检、临时目录安装、快捷方式、两次启动、健康检查、独立窗口、关闭窗口后的安全退出、卸载和默认保留数据。发布前还应在一台没有开发环境的 Windows 电脑上人工复验安装、打开独立窗口、导入、PDF 阅读和再次启动。
 
 ## 4. Release 内容
 
