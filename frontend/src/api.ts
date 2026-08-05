@@ -58,6 +58,18 @@ export interface JournalSubscription {
   last_match_count: number;
 }
 
+export interface JournalPaper {
+  id: number;
+  title: string;
+  journal: string | null;
+  year: number | null;
+  doi: string | null;
+  abstract: string;
+  url: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
 export interface SavedSearch {
   id: number;
   name: string;
@@ -407,6 +419,10 @@ export function setJournalEnabled(id: number, enabled: boolean): Promise<{ updat
 
 export function runJournal(id: number): Promise<{ new_count: number }> {
   return request(`/api/journals/subscriptions/${id}/run`, { method: "POST" });
+}
+
+export function fetchJournalPapers(id: number): Promise<JournalPaper[]> {
+  return request(`/api/journals/subscriptions/${id}/papers`);
 }
 
 export function fetchSavedSearches(): Promise<SavedSearch[]> {

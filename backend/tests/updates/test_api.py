@@ -82,6 +82,12 @@ def test_preferences_saved_search_journal_alert_and_settings_api(tmp_path: Path)
             f"/api/journals/subscriptions/{journal_id}/run", headers=headers
         )
         assert run_journal.json() == {"new_count": 1}
+        journal_papers = client.get(
+            f"/api/journals/subscriptions/{journal_id}/papers"
+        )
+        assert journal_papers.status_code == 200
+        assert journal_papers.json()[0]["title"] == "Catalysis API update"
+        assert journal_papers.json()[0]["abstract"] == "photocatalysis result"
         assert client.get("/api/recommendations").json()[0]["reasons"]
 
         alerts = client.get("/api/alerts").json()

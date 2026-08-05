@@ -519,6 +519,16 @@ def create_app(
         except Exception as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
 
+    @app.get("/api/journals/subscriptions/{subscription_id}/papers")
+    def list_journal_papers(
+        subscription_id: int,
+        limit: int = Query(default=50, ge=1, le=100),
+    ) -> list[dict[str, object]]:
+        try:
+            return updates().list_journal_papers(subscription_id, limit=limit)
+        except ValueError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
     @app.get("/api/saved-searches")
     def list_saved_searches() -> list[dict[str, object]]:
         return updates().list_saved_searches()

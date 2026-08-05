@@ -70,6 +70,12 @@ def test_journal_check_filters_other_journals_and_can_be_disabled(tmp_path) -> N
     subscription_id = service.follow_journal("Catalysis Today")
     assert service.run_journal(subscription_id) == 1
     assert service.list_journals()[0]["last_match_count"] == 1
+    papers = service.list_journal_papers(subscription_id)
+    assert len(papers) == 1
+    assert papers[0]["title"] == "Matching"
+    assert papers[0]["journal"] == "Catalysis Today"
+    assert papers[0]["year"] == 2026
+    assert papers[0]["abstract"] == "Abstract for Matching"
     service.set_journal_enabled(subscription_id, False)
     assert service.list_journals()[0]["enabled"] is False
     manager.close()

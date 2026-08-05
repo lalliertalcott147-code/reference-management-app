@@ -384,6 +384,44 @@ class UpdateService:
             )
         ]
 
+    def list_journal_papers(
+        self, subscription_id: int, *, limit: int = 50
+    ) -> list[dict[str, object]]:
+        if self.connection.execute(
+            "SELECT 1 FROM journal_subscriptions WHERE id=?", (subscription_id,)
+        ).fetchone() is None:
+            raise ValueError("期刊关注不存在")
+        return [
+            {
+                "id": int(row[0]),
+                "title": str(row[1]),
+                "journal": None if row[2] is None else str(row[2]),
+                "year": None if row[3] is None else int(row[3]),
+                "doi": None if row[4] is None else str(row[4]),
+                "abstract": "" if row[5] is None else str(row[5]),
+                "url": None if row[6] is None else str(row[6]),
+                "first_seen_at": str(row[7]),
+                "last_seen_at": str(row[8]),
+            }
+            for row in self.connection.execute(
+                """
+                SELECT p.id, p.title_original, p.journal_title, p.publication_year,
+                    p.doi,
+                    (SELECT a.content FROM abstracts a WHERE a.paper_id=p.id
+                     ORDER BY a.is_preferred DESC, a.id LIMIT 1),
+                    (SELECT ps.source_url FROM paper_sources ps WHERE ps.paper_id=p.id
+                     AND ps.source_url IS NOT NULL ORDER BY ps.fetched_at DESC LIMIT 1),
+                    i.first_seen_at, i.last_seen_at
+                FROM journal_subscription_items i
+                JOIN papers p ON p.id=i.paper_id
+                WHERE i.subscription_id=?
+                ORDER BY coalesce(p.publication_year, 0) DESC, i.last_seen_at DESC, p.id DESC
+                LIMIT ?
+                """,
+                (subscription_id, limit),
+            )
+        ]
+
     def set_journal_enabled(self, subscription_id: int, enabled: bool) -> None:
         self.connection.execute(
             "UPDATE journal_subscriptions SET enabled=?, next_run_at=? WHERE id=?",
