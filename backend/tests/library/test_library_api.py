@@ -71,6 +71,27 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
         workspace = client.get(f"/api/libraries/{library_id}/workspace")
         assert workspace.status_code == 200
         assert workspace.json()["cards"] == []
+        all_workspace = client.get("/api/library/workspace")
+        assert all_workspace.status_code == 200
+        assert all_workspace.json()["library_id"] is None
+        all_saved = client.put(
+            "/api/library/workspace",
+            json={
+                "body": "all-papers synthesis",
+                "note_x": 25,
+                "note_y": 35,
+                "note_width": 560,
+                "note_height": 300,
+            },
+            headers=headers,
+        )
+        assert all_saved.json()["version"] == 2
+        all_card = client.post(
+            "/api/library/workspace/cards",
+            json={"paper_id": paper_id},
+            headers=headers,
+        )
+        assert all_card.status_code == 200
         saved_workspace = client.put(
             f"/api/libraries/{library_id}/workspace",
             json={
@@ -100,6 +121,9 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
         assert refreshed_workspace["body"] == "global synthesis"
         assert refreshed_workspace["cards"][0]["x"] == 700.0
         assert "PDF translated excerpt" in refreshed_workspace["cards"][0]["notes"][0]["body"]
+        refreshed_all = client.get("/api/library/workspace").json()
+        assert refreshed_all["body"] == "all-papers synthesis"
+        assert refreshed_all["cards"][0]["paper_id"] == paper_id
         tag = client.post(
             "/api/tags",
             json={"name": "kinetics", "paper_ids": [paper_id], "library_id": library_id},

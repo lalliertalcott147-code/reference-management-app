@@ -847,6 +847,10 @@ def create_app(
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.get("/api/library/workspace")
+    def get_all_papers_workspace() -> dict[str, object]:
+        return library_service().get_workspace(None)
+
     @app.put("/api/libraries/{library_id}/workspace")
     def save_library_workspace(
         library_id: int, request: LibraryWorkspaceRequest
@@ -864,6 +868,18 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(error)) from error
         return {"version": version}
 
+    @app.put("/api/library/workspace")
+    def save_all_papers_workspace(request: LibraryWorkspaceRequest) -> dict[str, int]:
+        version = library_service().save_workspace(
+            None,
+            body=request.body,
+            note_x=request.note_x,
+            note_y=request.note_y,
+            note_width=request.note_width,
+            note_height=request.note_height,
+        )
+        return {"version": version}
+
     @app.post("/api/libraries/{library_id}/workspace/cards")
     def add_library_workspace_card(
         library_id: int, request: LibraryWorkspaceCardCreate
@@ -872,6 +888,15 @@ def create_app(
             return {"id": library_service().add_workspace_card(library_id, request.paper_id)}
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+        except (ValueError, apsw.ConstraintError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/api/library/workspace/cards")
+    def add_all_papers_workspace_card(
+        request: LibraryWorkspaceCardCreate,
+    ) -> dict[str, int]:
+        try:
+            return {"id": library_service().add_workspace_card(None, request.paper_id)}
         except (ValueError, apsw.ConstraintError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 

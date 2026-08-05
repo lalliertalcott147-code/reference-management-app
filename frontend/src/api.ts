@@ -213,7 +213,7 @@ export interface WorkspaceCard {
 }
 
 export interface LibraryWorkspace {
-  library_id: number;
+  library_id: number | null;
   body: string;
   note_x: number;
   note_y: number;
@@ -552,22 +552,30 @@ export function appendNote(
   }));
 }
 
-export function fetchLibraryWorkspace(libraryId: number): Promise<LibraryWorkspace> {
-  return request(`/api/libraries/${libraryId}/workspace`);
+export function fetchLibraryWorkspace(libraryId?: number): Promise<LibraryWorkspace> {
+  return request(libraryId === undefined
+    ? "/api/library/workspace"
+    : `/api/libraries/${libraryId}/workspace`);
 }
 
 export function saveLibraryWorkspace(
-  libraryId: number,
+  libraryId: number | undefined,
   workspace: Pick<LibraryWorkspace, "body" | "note_x" | "note_y" | "note_width" | "note_height">,
 ): Promise<{ version: number }> {
-  return request(`/api/libraries/${libraryId}/workspace`, jsonInit("PUT", workspace));
+  const path = libraryId === undefined
+    ? "/api/library/workspace"
+    : `/api/libraries/${libraryId}/workspace`;
+  return request(path, jsonInit("PUT", workspace));
 }
 
 export function addWorkspaceCard(
-  libraryId: number,
+  libraryId: number | undefined,
   paperId: number,
 ): Promise<{ id: number }> {
-  return request(`/api/libraries/${libraryId}/workspace/cards`, jsonInit("POST", {
+  const path = libraryId === undefined
+    ? "/api/library/workspace/cards"
+    : `/api/libraries/${libraryId}/workspace/cards`;
+  return request(path, jsonInit("POST", {
     paper_id: paperId,
   }));
 }

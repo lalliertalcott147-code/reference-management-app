@@ -190,6 +190,35 @@ def test_global_note_workspace_cards_collect_article_context_and_persist_layout(
         assert card["abstract_translation"] == "中文摘要"
         assert card["x"] == 710.0
         assert card["notes"][0]["body"] == "first article note\n\ntranslated excerpt"
+
+        service.save_note(paper_id, "all-papers article note")
+        assert service.get_workspace(None)["body"] == ""
+        assert service.save_workspace(
+            None,
+            body="all-papers synthesis",
+            note_x=36,
+            note_y=48,
+            note_width=640,
+            note_height=360,
+        ) == 2
+        service.add_workspace_card(None, paper_id)
+        second_library = service.create_library("项目 B")
+        service.add_paper(second_library, paper_id)
+        service.save_workspace(
+            second_library,
+            body="project B synthesis",
+            note_x=40,
+            note_y=50,
+            note_width=520,
+            note_height=260,
+        )
+
+        assert service.get_workspace(None)["body"] == "all-papers synthesis"
+        assert service.get_workspace(None)["cards"][0]["notes"][0]["body"] == (
+            "all-papers article note"
+        )
+        assert service.get_workspace(library_id)["body"] == "overall synthesis"
+        assert service.get_workspace(second_library)["body"] == "project B synthesis"
     finally:
         manager.close()
 

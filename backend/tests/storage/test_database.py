@@ -123,6 +123,58 @@ def test_forward_upgrade_creates_pre_migration_backup(tmp_path: Path) -> None:
         manager.close()
 
 
+def test_workspace_upgrade_preserves_existing_library_notes_and_cards(tmp_path: Path) -> None:
+    database_path = tmp_path / "workspace-v7.db"
+    connection = open_database(database_path)
+    apply_migrations(connection, CORE_MIGRATIONS[:7])
+    paper_id = PaperRepository(connection).create(PaperDraft("Existing workspace paper"))
+    connection.execute(
+        "INSERT INTO libraries(name, created_at, updated_at) VALUES('Existing', 't', 't')"
+    )
+    library_id = int(connection.last_insert_rowid())
+    connection.execute(
+        "INSERT INTO library_papers(library_id, paper_id, added_at) VALUES(?, ?, 't')",
+        (library_id, paper_id),
+    )
+    connection.execute(
+        """
+        INSERT INTO library_workspaces(library_id, body, created_at, updated_at)
+        VALUES(?, 'preserved synthesis', 't', 't')
+        """,
+        (library_id,),
+    )
+    connection.execute(
+        """
+        INSERT INTO library_workspace_cards(
+            library_id, paper_id, x, y, created_at, updated_at
+        ) VALUES(?, ?, 100, 120, 't', 't')
+        """,
+        (library_id, paper_id),
+    )
+    try:
+        apply_migrations(connection, CORE_MIGRATIONS)
+        workspace = require_row(
+            connection.execute(
+                """
+                SELECT id, scope_type, body FROM library_workspaces
+                WHERE library_id=?
+                """,
+                (library_id,),
+            ).fetchone(),
+            "reading migrated workspace",
+        )
+        assert workspace[1:] == ("library", "preserved synthesis")
+        assert require_row(
+            connection.execute(
+                "SELECT paper_id FROM library_workspace_cards WHERE workspace_id=?",
+                (workspace[0],),
+            ).fetchone(),
+            "reading migrated workspace card",
+        )[0] == paper_id
+    finally:
+        connection.close()
+
+
 def test_failed_migration_rolls_back_without_advancing_version(tmp_path: Path) -> None:
     connection = open_database(tmp_path / "broken.db")
     bad = Migration(

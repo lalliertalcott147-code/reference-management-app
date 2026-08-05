@@ -137,9 +137,9 @@ export function LibraryPage() {
         {activeLibraries.map((library) => <div className="library-link" key={library.id}><button type="button" className={selectedLibrary === library.id ? "active" : ""} onClick={() => setSelectedLibrary(library.id)}><span>{library.name}</span><small>{library.paper_count}</small></button><button type="button" aria-label={`删除 ${library.name}`} onClick={() => void deleteLibrary(library.id).then(() => loadLibraries())}>×</button></div>)}
       </aside>
       <section className="library-main">
-        {selectedLibrary !== undefined && <nav className="library-view-tabs" aria-label="知识库视图"><button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")}>文献列表</button><button type="button" className={view === "workspace" ? "active" : ""} onClick={() => setView("workspace")}>总笔记</button></nav>}
-        {view === "workspace" && selectedLibrary !== undefined
-          ? <LibraryWorkspace key={selectedLibrary} libraryId={selectedLibrary} papers={papers} />
+        <nav className="library-view-tabs" aria-label="知识库视图"><button type="button" className={view === "list" ? "active" : ""} onClick={() => setView("list")}>文献列表</button><button type="button" className={view === "workspace" ? "active" : ""} onClick={() => setView("workspace")}>总笔记</button></nav>
+        {view === "workspace"
+          ? <LibraryWorkspace key={selectedLibrary ?? "all"} libraryId={selectedLibrary} papers={papers} />
           : <>
             <form className="library-search" onSubmit={(event) => { event.preventDefault(); void loadPapers(query); }}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索题名、作者、摘要、译文、标签和笔记" /><button className="primary-button" type="submit">本地搜索</button></form>
             {checked.size > 0 && <div className="batch-bar"><strong>已选 {checked.size} 篇</strong><input value={tag} onChange={(event) => setTag(event.target.value)} placeholder="标签名称" /><button type="button" onClick={() => void applyTag()}>添加标签</button>{(["bibtex", "ris", "csv"] as const).map((format) => <button key={format} type="button" onClick={() => void exportPapers([...checked], format)}>导出 {format.toUpperCase()}</button>)}</div>}

@@ -379,34 +379,18 @@ class LibraryService:
         combined = f"{current}\n\n{addition}" if current else addition
         return self.save_note(paper_id, combined, note_id=int(row[0]), library_id=library_id)
 
-    def get_workspace(self, library_id: int) -> dict[str, object]:
-        self._require_active_library(library_id)
-        row = self.connection.execute(
-            """
-            SELECT body, note_x, note_y, note_width, note_height, version, updated_at
-            FROM library_workspaces WHERE library_id=?
-            """,
-            (library_id,),
-        ).fetchone()
-        if row is None:
-            now = utc_now()
+    def get_workspace(self, library_id: int | None) -> dict[str, object]:
+        workspace_id = self._get_or_create_workspace_id(library_id)
+        row = require_row(
             self.connection.execute(
                 """
-                INSERT INTO library_workspaces(library_id, created_at, updated_at)
-                VALUES(?, ?, ?)
+                SELECT body, note_x, note_y, note_width, note_height, version, updated_at
+                FROM library_workspaces WHERE id=?
                 """,
-                (library_id, now, now),
-            )
-            row = require_row(
-                self.connection.execute(
-                    """
-                    SELECT body, note_x, note_y, note_width, note_height, version, updated_at
-                    FROM library_workspaces WHERE library_id=?
-                    """,
-                    (library_id,),
-                ).fetchone(),
-                "creating library workspace",
-            )
+                (workspace_id,),
+            ).fetchone(),
+            "reading library workspace",
+        )
         return {
             "library_id": library_id,
             "body": str(row[0]),
@@ -416,12 +400,12 @@ class LibraryService:
             "note_height": float(row[4]),
             "version": int(row[5]),
             "updated_at": str(row[6]),
-            "cards": self._workspace_cards(library_id),
+            "cards": self._workspace_cards(workspace_id, library_id),
         }
 
     def save_workspace(
         self,
-        library_id: int,
+        library_id: int | None,
         *,
         body: str,
         note_x: float,
@@ -429,41 +413,42 @@ class LibraryService:
         note_width: float,
         note_height: float,
     ) -> int:
-        self._require_active_library(library_id)
+        workspace_id = self._get_or_create_workspace_id(library_id)
         now = utc_now()
         self.connection.execute(
             """
-            INSERT INTO library_workspaces(
-                library_id, body, note_x, note_y, note_width, note_height,
-                version, created_at, updated_at
-            ) VALUES(?, ?, ?, ?, ?, ?, 1, ?, ?)
-            ON CONFLICT(library_id) DO UPDATE SET
-                body=excluded.body, note_x=excluded.note_x, note_y=excluded.note_y,
-                note_width=excluded.note_width, note_height=excluded.note_height,
-                version=library_workspaces.version + 1, updated_at=excluded.updated_at
+            UPDATE library_workspaces SET
+                body=?, note_x=?, note_y=?, note_width=?, note_height=?,
+                version=version + 1, updated_at=? WHERE id=?
             """,
-            (library_id, body, note_x, note_y, note_width, note_height, now, now),
+            (body, note_x, note_y, note_width, note_height, now, workspace_id),
         )
         row = require_row(
             self.connection.execute(
-                "SELECT version FROM library_workspaces WHERE library_id=?", (library_id,)
+                "SELECT version FROM library_workspaces WHERE id=?", (workspace_id,)
             ).fetchone(),
             "saving library workspace",
         )
         return int(row[0])
 
-    def add_workspace_card(self, library_id: int, paper_id: int) -> int:
-        self._require_active_library(library_id)
-        if self.connection.execute(
-            "SELECT 1 FROM library_papers WHERE library_id=? AND paper_id=?",
-            (library_id, paper_id),
-        ).fetchone() is None:
+    def add_workspace_card(self, library_id: int | None, paper_id: int) -> int:
+        workspace_id = self._get_or_create_workspace_id(library_id)
+        if library_id is None:
+            paper_exists = self.connection.execute(
+                "SELECT 1 FROM papers WHERE id=?", (paper_id,)
+            ).fetchone()
+        else:
+            paper_exists = self.connection.execute(
+                "SELECT 1 FROM library_papers WHERE library_id=? AND paper_id=?",
+                (library_id, paper_id),
+            ).fetchone()
+        if paper_exists is None:
             raise ValueError("Paper is not part of this library")
         count = int(
             require_row(
                 self.connection.execute(
-                    "SELECT count(*) FROM library_workspace_cards WHERE library_id=?",
-                    (library_id,),
+                    "SELECT count(*) FROM library_workspace_cards WHERE workspace_id=?",
+                    (workspace_id,),
                 ).fetchone(),
                 "positioning workspace card",
             )[0]
@@ -472,10 +457,17 @@ class LibraryService:
         self.connection.execute(
             """
             INSERT INTO library_workspace_cards(
-                library_id, paper_id, x, y, created_at, updated_at
+                workspace_id, paper_id, x, y, created_at, updated_at
             ) VALUES(?, ?, ?, ?, ?, ?)
             """,
-            (library_id, paper_id, 580 + (count % 2) * 370, 24 + (count // 2) * 390, now, now),
+            (
+                workspace_id,
+                paper_id,
+                580 + (count % 2) * 370,
+                24 + (count // 2) * 390,
+                now,
+                now,
+            ),
         )
         return int(self.connection.last_insert_rowid())
 
@@ -503,7 +495,33 @@ class LibraryService:
         ).fetchone() is None:
             raise LookupError("Library not found")
 
-    def _workspace_cards(self, library_id: int) -> list[dict[str, object]]:
+    def _get_or_create_workspace_id(self, library_id: int | None) -> int:
+        if library_id is not None:
+            self._require_active_library(library_id)
+        scope_type = "all" if library_id is None else "library"
+        row = self.connection.execute(
+            """
+            SELECT id FROM library_workspaces
+            WHERE scope_type=? AND library_id IS ?
+            """,
+            (scope_type, library_id),
+        ).fetchone()
+        if row is not None:
+            return int(row[0])
+        now = utc_now()
+        self.connection.execute(
+            """
+            INSERT INTO library_workspaces(
+                scope_type, library_id, created_at, updated_at
+            ) VALUES(?, ?, ?, ?)
+            """,
+            (scope_type, library_id, now, now),
+        )
+        return int(self.connection.last_insert_rowid())
+
+    def _workspace_cards(
+        self, workspace_id: int, library_id: int | None
+    ) -> list[dict[str, object]]:
         cards: list[dict[str, object]] = []
         rows = self.connection.execute(
             """
@@ -519,25 +537,32 @@ class LibraryService:
                           pf.created_at DESC LIMIT 1)
             FROM library_workspace_cards c
             JOIN papers p ON p.id=c.paper_id
-            WHERE c.library_id=? ORDER BY c.id
+            WHERE c.workspace_id=? ORDER BY c.id
             """,
-            (library_id,),
+            (workspace_id,),
         )
         for row in rows:
             paper_id = int(row[1])
+            note_query = """
+                SELECT id, body, updated_at FROM paper_notes
+                WHERE paper_id=? AND library_id IS NULL
+                ORDER BY updated_at DESC, id DESC
+            """
+            note_parameters: tuple[int, ...] = (paper_id,)
+            if library_id is not None:
+                note_query = """
+                    SELECT id, body, updated_at FROM paper_notes
+                    WHERE paper_id=? AND library_id=?
+                    ORDER BY updated_at DESC, id DESC
+                """
+                note_parameters = (paper_id, library_id)
             notes = [
                 {
                     "id": int(note[0]),
                     "body": str(note[1]),
                     "updated_at": str(note[2]),
                 }
-                for note in self.connection.execute(
-                    """
-                    SELECT id, body, updated_at FROM paper_notes
-                    WHERE paper_id=? ORDER BY updated_at DESC, id DESC
-                    """,
-                    (paper_id,),
-                )
+                for note in self.connection.execute(note_query, note_parameters)
             ]
             cards.append(
                 {

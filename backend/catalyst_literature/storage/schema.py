@@ -453,6 +453,66 @@ CORE_MIGRATIONS = (
             ON library_workspace_cards(library_id, id);
         """,
     ),
+    Migration(
+        8,
+        "all_papers_workspace",
+        """
+        CREATE TABLE library_workspaces_v2 (
+            id INTEGER PRIMARY KEY,
+            scope_type TEXT NOT NULL CHECK(scope_type IN ('all', 'library')),
+            library_id INTEGER REFERENCES libraries(id) ON DELETE CASCADE,
+            body TEXT NOT NULL DEFAULT '',
+            note_x REAL NOT NULL DEFAULT 24,
+            note_y REAL NOT NULL DEFAULT 24,
+            note_width REAL NOT NULL DEFAULT 520 CHECK(note_width >= 280),
+            note_height REAL NOT NULL DEFAULT 260 CHECK(note_height >= 180),
+            version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            CHECK(
+                (scope_type='all' AND library_id IS NULL) OR
+                (scope_type='library' AND library_id IS NOT NULL)
+            )
+        );
+        INSERT INTO library_workspaces_v2(
+            id, scope_type, library_id, body, note_x, note_y,
+            note_width, note_height, version, created_at, updated_at
+        )
+        SELECT library_id, 'library', library_id, body, note_x, note_y,
+               note_width, note_height, version, created_at, updated_at
+        FROM library_workspaces;
+
+        CREATE TABLE library_workspace_cards_v2 (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL
+                REFERENCES library_workspaces_v2(id) ON DELETE CASCADE,
+            paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            width REAL NOT NULL DEFAULT 340 CHECK(width >= 280),
+            height REAL NOT NULL DEFAULT 360 CHECK(height >= 220),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(workspace_id, paper_id)
+        );
+        INSERT INTO library_workspace_cards_v2(
+            id, workspace_id, paper_id, x, y, width, height, created_at, updated_at
+        )
+        SELECT id, library_id, paper_id, x, y, width, height, created_at, updated_at
+        FROM library_workspace_cards;
+
+        DROP TABLE library_workspace_cards;
+        DROP TABLE library_workspaces;
+        ALTER TABLE library_workspaces_v2 RENAME TO library_workspaces;
+        ALTER TABLE library_workspace_cards_v2 RENAME TO library_workspace_cards;
+        CREATE UNIQUE INDEX library_workspaces_all_idx
+            ON library_workspaces(scope_type) WHERE scope_type='all';
+        CREATE UNIQUE INDEX library_workspaces_library_idx
+            ON library_workspaces(library_id) WHERE library_id IS NOT NULL;
+        CREATE INDEX library_workspace_cards_workspace_idx
+            ON library_workspace_cards(workspace_id, id);
+        """,
+    ),
 )
 
 

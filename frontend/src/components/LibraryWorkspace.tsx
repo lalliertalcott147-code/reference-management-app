@@ -36,7 +36,7 @@ export function LibraryWorkspace({
   libraryId,
   papers,
 }: {
-  libraryId: number;
+  libraryId?: number;
   papers: LibraryPaper[];
 }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);

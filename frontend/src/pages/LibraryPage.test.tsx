@@ -10,6 +10,19 @@ describe("LibraryPage", () => {
         status: 200, headers: { "Content-Type": "application/json" },
       }));
     }
+    if (url === "/api/library/workspace") {
+      return Promise.resolve(new Response(JSON.stringify({
+        library_id: null,
+        body: "全部文献的独立总笔记",
+        note_x: 24,
+        note_y: 24,
+        note_width: 520,
+        note_height: 260,
+        version: 1,
+        updated_at: "2026-08-06T00:00:00Z",
+        cards: [],
+      }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    }
     if (url.startsWith("/api/libraries")) {
       return Promise.resolve(new Response(JSON.stringify([{
         id: 1, name: "我的文献", sort_order: 0, deleted_at: null, paper_count: 1,
@@ -70,5 +83,18 @@ describe("LibraryPage", () => {
       }),
     ));
     expect(await screen.findByText("已将“Copper catalyst”添加到“我的文献”")).toBeInTheDocument();
+  });
+
+  it("offers an independent global note in all papers", async () => {
+    render(<LibraryPage />);
+    expect(await screen.findByRole("heading", { name: "Copper catalyst" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "全部文献" }));
+    fireEvent.click(screen.getByRole("button", { name: "总笔记" }));
+    expect(await screen.findByRole("textbox", { name: "总笔记" })).toHaveValue(
+      "全部文献的独立总笔记",
+    );
+    expect(fetchMock).toHaveBeenCalledWith("/api/library/workspace", {
+      credentials: "same-origin",
+    });
   });
 });
