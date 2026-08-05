@@ -158,7 +158,12 @@ class LibraryService:
             self.connection.execute("DELETE FROM libraries WHERE id=?", (library_id,))
         return len(ids)
 
-    def add_paper(self, library_id: int, paper_id: int) -> None:
+    def add_paper(self, library_id: int, paper_id: int) -> bool:
+        self._require_active_library(library_id)
+        if self.connection.execute(
+            "SELECT 1 FROM papers WHERE id=?", (paper_id,)
+        ).fetchone() is None:
+            raise LookupError("Paper not found")
         self.connection.execute(
             """
             INSERT INTO library_papers(library_id, paper_id, added_at)
@@ -166,6 +171,7 @@ class LibraryService:
             """,
             (library_id, paper_id, utc_now()),
         )
+        return self.connection.changes() > 0
 
     def remove_paper(self, library_id: int, paper_id: int) -> None:
         self.connection.execute(

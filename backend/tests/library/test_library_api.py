@@ -32,6 +32,24 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
         libraries = client.get("/api/libraries")
         assert libraries.status_code == 200
         assert libraries.json()[0]["paper_count"] == 1
+        second_library = client.post(
+            "/api/libraries", json={"name": "PDF Collection"}, headers=headers
+        ).json()["id"]
+        assigned = client.post(
+            f"/api/libraries/{second_library}/papers",
+            json={"paper_id": paper_id},
+            headers=headers,
+        )
+        assert assigned.json() == {"added": True}
+        duplicate_assignment = client.post(
+            f"/api/libraries/{second_library}/papers",
+            json={"paper_id": paper_id},
+            headers=headers,
+        )
+        assert duplicate_assignment.json() == {"added": False}
+        assert [item["id"] for item in client.get(
+            "/api/library/papers", params={"library_id": second_library}
+        ).json()] == [paper_id]
         state = client.put(
             f"/api/papers/{paper_id}/state",
             json={"liked": True, "saved": True, "reading_status": "read"},
@@ -100,10 +118,15 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
         assert "papers.ris" in export.headers["content-disposition"]
         deleted = client.delete(f"/api/libraries/{library_id}", headers=headers)
         assert deleted.status_code == 200
-        assert client.get("/api/libraries").json() == []
+        assert [item["id"] for item in client.get("/api/libraries").json()] == [
+            second_library
+        ]
         restored = client.post(f"/api/libraries/{library_id}/restore", headers=headers)
         assert restored.status_code == 200
-        assert client.get("/api/libraries").json()[0]["name"] == "API Project"
+        assert {item["name"] for item in client.get("/api/libraries").json()} == {
+            "API Project",
+            "PDF Collection",
+        }
         assert (
             require_row(
                 database.require_core()

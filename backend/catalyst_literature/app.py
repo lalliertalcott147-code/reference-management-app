@@ -24,6 +24,7 @@ from .api_models import (
     InterestTermRequest,
     JournalSubscriptionRequest,
     LibraryCreateRequest,
+    LibraryPaperAddRequest,
     LibraryWorkspaceCardCreate,
     LibraryWorkspaceCardUpdate,
     LibraryWorkspaceRequest,
@@ -758,6 +759,16 @@ def create_app(
             return {"id": library_service().create_library(request.name)}
         except (ValueError, apsw.ConstraintError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/api/libraries/{library_id}/papers")
+    def add_paper_to_library(
+        library_id: int, request: LibraryPaperAddRequest
+    ) -> dict[str, bool]:
+        try:
+            added = library_service().add_paper(library_id, request.paper_id)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"added": added}
 
     @app.put("/api/libraries/{library_id}")
     def rename_library(library_id: int, request: LibraryCreateRequest) -> dict[str, bool]:

@@ -71,6 +71,10 @@ class LibraryCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
 
 
+class LibraryPaperAddRequest(BaseModel):
+    paper_id: int = Field(gt=0)
+
+
 class PaperStateRequest(BaseModel):
     liked: bool = False
     disliked: bool = False

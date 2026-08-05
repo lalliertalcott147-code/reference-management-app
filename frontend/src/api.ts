@@ -498,6 +498,10 @@ export function restoreLibrary(id: number): Promise<{ restored: boolean }> {
   return request(`/api/libraries/${id}/restore`, { method: "POST" });
 }
 
+export function addPaperToLibrary(libraryId: number, paperId: number): Promise<{ added: boolean }> {
+  return request(`/api/libraries/${libraryId}/papers`, jsonInit("POST", { paper_id: paperId }));
+}
+
 export function fetchLibraryPapers(libraryId?: number, query = ""): Promise<LibraryPaper[]> {
   const parameters = new URLSearchParams();
   if (libraryId !== undefined) parameters.set("library_id", String(libraryId));

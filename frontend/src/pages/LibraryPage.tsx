@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import {
+  addPaperToLibrary,
   assignTag,
   createLibrary,
   deleteLibrary,
@@ -102,6 +103,26 @@ export function LibraryPage() {
     setTag("");
   }
 
+  async function addToLibrary(paper: LibraryPaper, libraryId: number) {
+    const target = libraries.find((library) => library.id === libraryId);
+    if (!target) return;
+    try {
+      const result = await addPaperToLibrary(libraryId, paper.id);
+      if (result.added) {
+        setLibraries((current) => current.map((library) => (
+          library.id === libraryId
+            ? { ...library, paper_count: library.paper_count + 1 }
+            : library
+        )));
+      }
+      setMessage(result.added
+        ? `已将“${paper.title}”添加到“${target.name}”`
+        : `“${paper.title}”已在“${target.name}”中`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "添加到知识库失败");
+    }
+  }
+
   const activeLibraries = libraries.filter((item) => !item.deleted_at);
   const deletedLibraries = libraries.filter((item) => item.deleted_at);
   return <div className="page library-page">
@@ -124,7 +145,7 @@ export function LibraryPage() {
             {checked.size > 0 && <div className="batch-bar"><strong>已选 {checked.size} 篇</strong><input value={tag} onChange={(event) => setTag(event.target.value)} placeholder="标签名称" /><button type="button" onClick={() => void applyTag()}>添加标签</button>{(["bibtex", "ris", "csv"] as const).map((format) => <button key={format} type="button" onClick={() => void exportPapers([...checked], format)}>导出 {format.toUpperCase()}</button>)}</div>}
             <span className="action-message" role="status">{message}</span>
             {papers.length === 0 && <div className="empty-state"><span className="empty-icon">□</span><h2>这里还没有文献</h2><p>从检索页加入，或调整本地搜索条件。</p><a className="primary-button" href="#search">去检索</a></div>}
-            <div className="library-paper-list">{papers.map((paper) => <article key={paper.id} className="library-paper"><label><input type="checkbox" aria-label={`选择 ${paper.title}`} checked={checked.has(paper.id)} onChange={(event) => setChecked((current) => { const next = new Set(current); if (event.target.checked) next.add(paper.id); else next.delete(paper.id); return next; })} /></label><div><h2>{paper.title}</h2><p>{paper.journal ?? "期刊暂缺"} · {paper.year ?? "年份暂缺"} {paper.has_pdf ? "· 已有 PDF" : "· 无 PDF"}</p><div className="state-row"><button className={paper.liked ? "on" : ""} type="button" onClick={() => void setState(paper, { liked: !paper.liked })}>♡ 喜欢</button><select aria-label={`${paper.title}阅读状态`} value={paper.reading_status} onChange={(event) => void setState(paper, { reading_status: event.target.value as LibraryPaper["reading_status"] })}><option value="unread">未读</option><option value="reading">在读</option><option value="read">已读</option></select>{paper.file_id && <a className="reader-link" href={`#reader?paper=${paper.id}&file=${paper.file_id}`}>阅读 PDF</a>}<PdfUpload paperId={paper.id} compact onComplete={(_paperId, fileId) => setPapers((current) => current.map((item) => item.id === paper.id ? { ...item, has_pdf: true, file_id: fileId } : item))} /></div><NoteEditor paper={paper} libraryId={selectedLibrary} /></div></article>)}</div>
+            <div className="library-paper-list">{papers.map((paper) => <article key={paper.id} className="library-paper"><label><input type="checkbox" aria-label={`选择 ${paper.title}`} checked={checked.has(paper.id)} onChange={(event) => setChecked((current) => { const next = new Set(current); if (event.target.checked) next.add(paper.id); else next.delete(paper.id); return next; })} /></label><div><h2>{paper.title}</h2><p>{paper.journal ?? "期刊暂缺"} · {paper.year ?? "年份暂缺"} {paper.has_pdf ? "· 已有 PDF" : "· 无 PDF"}</p><div className="state-row"><button className={paper.liked ? "on" : ""} type="button" onClick={() => void setState(paper, { liked: !paper.liked })}>♡ 喜欢</button><select aria-label={`${paper.title}阅读状态`} value={paper.reading_status} onChange={(event) => void setState(paper, { reading_status: event.target.value as LibraryPaper["reading_status"] })}><option value="unread">未读</option><option value="reading">在读</option><option value="read">已读</option></select>{selectedLibrary === undefined && activeLibraries.length > 0 && <select aria-label={`将 ${paper.title} 添加到知识库`} value="" onChange={(event) => { const targetId = Number(event.target.value); if (targetId) void addToLibrary(paper, targetId); }}><option value="">添加到知识库…</option>{activeLibraries.map((library) => <option key={library.id} value={library.id}>{library.name}</option>)}</select>}{paper.file_id && <a className="reader-link" href={`#reader?paper=${paper.id}&file=${paper.file_id}`}>阅读 PDF</a>}<PdfUpload paperId={paper.id} compact onComplete={(_paperId, fileId) => setPapers((current) => current.map((item) => item.id === paper.id ? { ...item, has_pdf: true, file_id: fileId } : item))} /></div><NoteEditor paper={paper} libraryId={selectedLibrary} /></div></article>)}</div>
           </>}
       </section>
     </div>

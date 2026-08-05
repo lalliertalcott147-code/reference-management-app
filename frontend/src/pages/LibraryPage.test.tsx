@@ -1,10 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryPage } from "./LibraryPage";
 
 describe("LibraryPage", () => {
-  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url === "/api/libraries/1/papers" && init?.method === "POST") {
+      return Promise.resolve(new Response(JSON.stringify({ added: true }), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      }));
+    }
     if (url.startsWith("/api/libraries")) {
       return Promise.resolve(new Response(JSON.stringify([{
         id: 1, name: "我的文献", sort_order: 0, deleted_at: null, paper_count: 1,
@@ -34,7 +39,7 @@ describe("LibraryPage", () => {
   });
 
   beforeEach(() => vi.stubGlobal("fetch", fetchMock));
-  afterEach(() => { vi.unstubAllGlobals(); fetchMock.mockClear(); });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); fetchMock.mockClear(); });
 
   it("loads local papers and autosaves a note after editing", async () => {
     render(<LibraryPage />);
@@ -48,5 +53,22 @@ describe("LibraryPage", () => {
       "/api/notes",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("adds an uploaded PDF paper from all papers to a custom library", async () => {
+    render(<LibraryPage />);
+    expect(await screen.findByRole("heading", { name: "Copper catalyst" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "全部文献" }));
+    fireEvent.change(screen.getByRole("combobox", {
+      name: "将 Copper catalyst 添加到知识库",
+    }), { target: { value: "1" } });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/libraries/1/papers",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ paper_id: 7 }),
+      }),
+    ));
+    expect(await screen.findByText("已将“Copper catalyst”添加到“我的文献”")).toBeInTheDocument();
   });
 });
