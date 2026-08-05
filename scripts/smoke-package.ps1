@@ -120,13 +120,13 @@ try {
         } catch {}
     }
     if (Test-Path -LiteralPath $smokeRoot) {
-        foreach ($cleanupAttempt in 1..10) {
+        foreach ($cleanupAttempt in 1..60) {
             try {
                 Remove-Item -LiteralPath $smokeRoot -Recurse -Force
                 break
             } catch {
-                if ($cleanupAttempt -eq 10) { throw }
-                Start-Sleep -Milliseconds 250
+                if ($cleanupAttempt -eq 60) { throw }
+                Start-Sleep -Milliseconds 500
             }
         }
     }
