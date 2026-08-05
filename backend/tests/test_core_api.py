@@ -54,6 +54,14 @@ def test_settings_api_masks_dpapi_keys_and_persists_preferences(tmp_path: Path) 
         database.close()
 
 
+def test_user_visible_api_product_name_is_reference_manager(tmp_path: Path) -> None:
+    client, database = authenticated_app(tmp_path)
+    try:
+        assert client.get("/openapi.json").json()["info"]["title"] == "文献管理器"
+    finally:
+        database.close()
+
+
 def test_avatar_upload_validates_and_persists_local_image(tmp_path: Path) -> None:
     client, database = authenticated_app(tmp_path)
     try:

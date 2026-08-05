@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-WINDOW_TITLE = "催化文献"
+WINDOW_TITLE = "文献管理器"
 
 
 def run_desktop_window(

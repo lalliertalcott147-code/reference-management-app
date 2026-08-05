@@ -56,6 +56,7 @@ describe("App", () => {
     render(<App />);
     expect(await screen.findByRole("navigation", { name: "主导航" })).toBeInTheDocument();
     expect(screen.getByText("Zyyyy")).toBeInTheDocument();
+    expect(screen.getByText("文献管理器")).toBeInTheDocument();
     expect(await screen.findByText(/本地服务已连接/)).toHaveTextContent("版本 0.1.0");
   });
 });

@@ -121,7 +121,7 @@ export function SearchPage() {
 
   return <div className="page search-page">
     <header className="page-header">
-      <div><p className="eyebrow">多来源检索</p><h1>检索催化文献</h1></div>
+      <div><p className="eyebrow">多来源检索</p><h1>检索文献</h1></div>
       <a className="secondary-button" href="#import">导入 WoS 记录</a>
     </header>
     <form className="search-form" onSubmit={submit}>

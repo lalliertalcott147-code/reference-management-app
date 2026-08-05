@@ -16,11 +16,11 @@ def show_startup_error(page: Path, error: Exception) -> bool:
     try:
         user32 = ctypes.WinDLL("user32", use_last_error=True)
         message = (
-            "催化文献未能启动。\n\n"
+            "文献管理器未能启动。\n\n"
             f"{str(error) or type(error).__name__}\n\n"
             f"诊断文件: {page}"
         )
-        user32.MessageBoxW(None, message, "催化文献启动失败", 0x10)
+        user32.MessageBoxW(None, message, "文献管理器启动失败", 0x10)
         return True
     except Exception:
         return False
@@ -32,7 +32,7 @@ def write_startup_diagnostic(paths: AppPaths, error: Exception) -> Path:
     message = html.escape(str(error) or type(error).__name__)
     target.write_text(
         "<!doctype html><html lang='zh-CN'><meta charset='utf-8'>"
-        "<title>催化文献启动失败</title>"
+        "<title>文献管理器启动失败</title>"
         "<style>body{font:16px system-ui;max-width:720px;margin:64px auto;padding:24px}"
         "code{display:block;padding:16px;background:#f4f7f6;border-radius:8px}</style>"
         "<h1>本地服务未能启动</h1>"
@@ -59,7 +59,7 @@ def main(
             )
             if not headless and not notifier(page, error):
                 webbrowser.open(page.as_uri())
-            print(f"Catalyst Literature failed to start. Details: {page}", file=sys.stderr)
+            print(f"Reference Manager failed to start. Details: {page}", file=sys.stderr)
         except Exception:
-            print(f"Catalyst Literature failed to start: {error}", file=sys.stderr)
+            print(f"Reference Manager failed to start: {error}", file=sys.stderr)
         return 1

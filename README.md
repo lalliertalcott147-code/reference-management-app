@@ -1,4 +1,4 @@
-# 催化文献检索阅读 App
+# 文献管理器
 
 一个面向个人科研使用的 Windows 本地文献工作台。它使用独立的 Windows 桌面窗口，后端、数据库、PDF、译文、笔记和模型全部保存在当前电脑；关闭 App 窗口后，本地服务会安全退出。
 
@@ -21,7 +21,7 @@
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-然后双击桌面的“催化文献”快捷方式。独立窗口使用 Microsoft Edge WebView2 Runtime；Windows 11 通常已预装。升级前关闭 App，再运行新版安装脚本。卸载默认保留知识库、PDF、模型和设置；只有明确提供双重删除参数时才会移除永久数据。
+然后双击桌面的“文献管理器”快捷方式。独立窗口使用 Microsoft Edge WebView2 Runtime；Windows 11 通常已预装。升级前关闭 App，再运行新版安装脚本。卸载默认保留知识库、PDF、模型和设置；只有明确提供双重删除参数时才会移除永久数据。
 
 完整操作见[用户说明](docs/USER_GUIDE.md)。
 

@@ -25,7 +25,7 @@ try {
     if (-not (Test-Path (Join-Path $install 'LICENSE'))) { throw 'The installed project license is missing.' }
     if (-not (Test-Path (Join-Path $install 'THIRD_PARTY_NOTICES.md'))) { throw 'The installed third-party notice is missing.' }
     if (-not (Test-Path (Join-Path $install 'licenses'))) { throw 'The installed dependency licenses are missing.' }
-    $shortcutName = -join ([char[]](0x50AC, 0x5316, 0x6587, 0x732E))
+    $shortcutName = -join ([char[]](0x6587, 0x732E, 0x7BA1, 0x7406, 0x5668))
     if (-not (Test-Path (Join-Path $shortcuts ($shortcutName + '.lnk')))) { throw 'The desktop shortcut is missing.' }
 
     $env:CATALYST_DATA_DIR = $data
@@ -83,7 +83,7 @@ try {
         $process.Refresh()
     } while ($process.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $windowDeadline)
     if ($process.MainWindowHandle -eq 0) { throw 'Desktop package did not create a native window.' }
-    $expectedWindowTitle = -join [char[]](0x50AC, 0x5316, 0x6587, 0x732E)
+    $expectedWindowTitle = -join [char[]](0x6587, 0x732E, 0x7BA1, 0x7406, 0x5668)
     if ($process.MainWindowTitle -ne $expectedWindowTitle) {
         throw "Unexpected window title: $($process.MainWindowTitle)"
     }

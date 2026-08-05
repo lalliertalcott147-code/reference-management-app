@@ -262,7 +262,7 @@ def create_app(
             if local_pdf is not None:
                 local_pdf.close()
 
-    app = FastAPI(title="Catalyst Literature", version=__version__, lifespan=lifespan)
+    app = FastAPI(title="文献管理器", version=__version__, lifespan=lifespan)
     app.add_middleware(
         LocalSessionMiddleware,
         sessions=session_manager,
@@ -1223,6 +1223,6 @@ def create_app(
 
         @app.get("/")
         def development_root() -> dict[str, str]:
-            return {"app": "Catalyst Literature", "frontend": "not built"}
+            return {"app": "文献管理器", "frontend": "not built"}
 
     return app

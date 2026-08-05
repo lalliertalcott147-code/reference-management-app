@@ -42,6 +42,7 @@ class FakeWebview:
 
 
 def test_desktop_window_uses_webview2_and_persistent_app_storage(tmp_path: Path) -> None:
+    assert WINDOW_TITLE == "文献管理器"
     fake = FakeWebview()
     closed: list[bool] = []
     storage = tmp_path / "webview"
