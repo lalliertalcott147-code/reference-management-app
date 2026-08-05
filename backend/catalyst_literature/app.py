@@ -49,6 +49,7 @@ from .pdfs.analysis import PdfAnalysisError
 from .pdfs.ingest import MAX_PDF_BYTES, PdfUploadError, new_upload_token
 from .pdfs.reader import PdfReaderService
 from .pdfs.wiring import PdfRuntime
+from .profile import MAX_AVATAR_BYTES, AvatarError, AvatarStore
 from .search.merge import merge_records
 from .search.models import PaperRecord, SearchQuery
 from .search.persistence import SearchResultRepository
@@ -219,6 +220,7 @@ def create_app(
         if database is not None
         else None
     )
+    avatar_store = AvatarStore(settings.paths)
     resolved_search_service = search_service or (
         build_search_service(database) if database is not None else None
     )
@@ -352,6 +354,7 @@ def create_app(
                 "automatic_search_daily_limit", 10
             ),
             "onboarding_complete": values.get("onboarding_complete", False),
+            "avatar_url": avatar_store.url(),
             "storage": str(database.paths.root),
             "cache_limit_mb": 500,
         }
@@ -381,6 +384,29 @@ def create_app(
         if local_updates is not None:
             local_updates.search_service = app.state.search_service
         return get_settings()
+
+    @app.get("/api/profile/avatar")
+    def get_avatar() -> FileResponse:
+        avatar = avatar_store.current()
+        if avatar is None:
+            raise HTTPException(status_code=404, detail="尚未设置个人头像")
+        return FileResponse(avatar.path, media_type=avatar.media_type)
+
+    @app.post("/api/profile/avatar")
+    async def upload_avatar(
+        file: Annotated[UploadFile, File(description="PNG、JPEG 或 WebP 头像")],
+    ) -> dict[str, str]:
+        try:
+            content = await file.read(MAX_AVATAR_BYTES + 1)
+            avatar_store.save(content)
+        except AvatarError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        finally:
+            await file.close()
+        avatar_url = avatar_store.url()
+        if avatar_url is None:
+            raise HTTPException(status_code=500, detail="头像保存失败")
+        return {"avatar_url": avatar_url}
 
     def preferences() -> PreferenceService:
         if database is None:

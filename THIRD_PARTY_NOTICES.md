@@ -11,6 +11,7 @@
 | Uvicorn | 0.51.0 | 回环服务器 | BSD-3-Clause，https://www.uvicorn.org/ |
 | APSW / SQLite | 3.53.3.1 | 本地数据库 | any-OSI / SQLite public domain，https://github.com/rogerbinns/apsw |
 | pypdfium2 / PDFium | 5.12.1 | PDF 验证、提取与渲染 | BSD-3-Clause、Apache-2.0 及依赖许可证，https://github.com/pypdfium2-team/pypdfium2 |
+| Pillow | 12.3.0 | 头像图片格式与安全校验 | HPND，https://python-pillow.org/ |
 | pywebview | 6.2.1 | Windows 独立桌面窗口 | BSD-3-Clause，https://github.com/r0x0r/pywebview |
 | PaddlePaddle | 3.3.1 | 本地 OCR 推理 | Apache-2.0，https://github.com/PaddlePaddle/Paddle |
 | PaddleOCR / PaddleX | 3.7.x | PP-OCRv6 | Apache-2.0，https://github.com/PaddlePaddle/PaddleOCR |

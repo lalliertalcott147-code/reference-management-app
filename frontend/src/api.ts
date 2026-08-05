@@ -19,6 +19,7 @@ export interface SettingsResponse {
   personalization_enabled: boolean;
   automatic_search_daily_limit: number;
   onboarding_complete: boolean;
+  avatar_url: string | null;
   storage: string;
   cache_limit_mb: number;
 }
@@ -307,6 +308,10 @@ export function fetchSettings(signal?: AbortSignal): Promise<SettingsResponse> {
 
 export function updateSettings(body: Record<string, unknown>): Promise<SettingsResponse> {
   return request("/api/settings", jsonInit("PUT", body));
+}
+
+export function uploadProfileAvatar(file: File): Promise<{ avatar_url: string }> {
+  return upload("/api/profile/avatar", file);
 }
 
 export function fetchResearchTopics(): Promise<ResearchTopic[]> {

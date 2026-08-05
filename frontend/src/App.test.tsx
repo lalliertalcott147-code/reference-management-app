@@ -34,6 +34,7 @@ describe("App", () => {
           personalization_enabled: true,
           automatic_search_daily_limit: 10,
           onboarding_complete: true,
+          avatar_url: null,
           storage: "C:/data",
           cache_limit_mb: 500,
         }), { status: 200, headers: { "Content-Type": "application/json" } }));
