@@ -183,6 +183,33 @@ export interface LibraryPaper {
   note: string;
 }
 
+export interface WorkspaceCard {
+  id: number;
+  paper_id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  title: string;
+  title_translation: string | null;
+  abstract: string;
+  abstract_translation: string | null;
+  file_id: number | null;
+  notes: { id: number; body: string; updated_at: string }[];
+}
+
+export interface LibraryWorkspace {
+  library_id: number;
+  body: string;
+  note_x: number;
+  note_y: number;
+  note_width: number;
+  note_height: number;
+  version: number;
+  updated_at: string;
+  cards: WorkspaceCard[];
+}
+
 export interface ModelStatus {
   state: "missing" | "invalid" | "ready";
   repository: string;
@@ -201,7 +228,7 @@ export interface JobStatus {
   progress_total: number | null;
   result: null | {
     paper_id?: number;
-    field_name?: "title" | "abstract";
+    field_name?: "title" | "abstract" | "selection";
     source_text?: string;
     translated_text?: string;
     saved?: boolean;
@@ -489,6 +516,49 @@ export function saveNote(
   }));
 }
 
+export function appendNote(
+  paperId: number,
+  body: string,
+  libraryId?: number,
+): Promise<{ note_id: number; version: number }> {
+  return request("/api/notes/append", jsonInit("POST", {
+    paper_id: paperId,
+    body,
+    library_id: libraryId,
+  }));
+}
+
+export function fetchLibraryWorkspace(libraryId: number): Promise<LibraryWorkspace> {
+  return request(`/api/libraries/${libraryId}/workspace`);
+}
+
+export function saveLibraryWorkspace(
+  libraryId: number,
+  workspace: Pick<LibraryWorkspace, "body" | "note_x" | "note_y" | "note_width" | "note_height">,
+): Promise<{ version: number }> {
+  return request(`/api/libraries/${libraryId}/workspace`, jsonInit("PUT", workspace));
+}
+
+export function addWorkspaceCard(
+  libraryId: number,
+  paperId: number,
+): Promise<{ id: number }> {
+  return request(`/api/libraries/${libraryId}/workspace/cards`, jsonInit("POST", {
+    paper_id: paperId,
+  }));
+}
+
+export function updateWorkspaceCard(
+  cardId: number,
+  layout: Pick<WorkspaceCard, "x" | "y" | "width" | "height">,
+): Promise<{ updated: boolean }> {
+  return request(`/api/library-workspace/cards/${cardId}`, jsonInit("PUT", layout));
+}
+
+export function deleteWorkspaceCard(cardId: number): Promise<{ deleted: boolean }> {
+  return request(`/api/library-workspace/cards/${cardId}`, { method: "DELETE" });
+}
+
 export async function exportPapers(paperIds: number[], format: "bibtex" | "ris" | "csv"): Promise<void> {
   const response = await fetch("/api/library/export", {
     credentials: "same-origin",
@@ -522,6 +592,18 @@ export function submitTranslation(
     paper_id: paperId,
     field_name: fieldName,
     save,
+    use_glossary: useGlossary,
+  }));
+}
+
+export function submitTextTranslation(
+  paperId: number,
+  text: string,
+  useGlossary = true,
+): Promise<{ job_id: number }> {
+  return request("/api/translation/text-jobs", jsonInit("POST", {
+    paper_id: paperId,
+    text,
     use_glossary: useGlossary,
   }));
 }

@@ -345,6 +345,212 @@ class LibraryService:
             refresh_paper_fts(self.connection, paper_id)
         return note_id, version
 
+    def append_note(
+        self, paper_id: int, body: str, *, library_id: int | None = None
+    ) -> tuple[int, int]:
+        addition = body.strip()
+        if not addition:
+            raise ValueError("Note text must not be empty")
+        if library_id is None:
+            row = self.connection.execute(
+                """
+                SELECT id, body FROM paper_notes WHERE paper_id=?
+                ORDER BY updated_at DESC, id DESC LIMIT 1
+                """,
+                (paper_id,),
+            ).fetchone()
+        else:
+            row = self.connection.execute(
+                """
+                SELECT id, body FROM paper_notes WHERE paper_id=? AND library_id=?
+                ORDER BY updated_at DESC, id DESC LIMIT 1
+                """,
+                (paper_id, library_id),
+            ).fetchone()
+        if row is None:
+            return self.save_note(paper_id, addition, library_id=library_id)
+        current = str(row[1]).rstrip()
+        combined = f"{current}\n\n{addition}" if current else addition
+        return self.save_note(paper_id, combined, note_id=int(row[0]), library_id=library_id)
+
+    def get_workspace(self, library_id: int) -> dict[str, object]:
+        self._require_active_library(library_id)
+        row = self.connection.execute(
+            """
+            SELECT body, note_x, note_y, note_width, note_height, version, updated_at
+            FROM library_workspaces WHERE library_id=?
+            """,
+            (library_id,),
+        ).fetchone()
+        if row is None:
+            now = utc_now()
+            self.connection.execute(
+                """
+                INSERT INTO library_workspaces(library_id, created_at, updated_at)
+                VALUES(?, ?, ?)
+                """,
+                (library_id, now, now),
+            )
+            row = require_row(
+                self.connection.execute(
+                    """
+                    SELECT body, note_x, note_y, note_width, note_height, version, updated_at
+                    FROM library_workspaces WHERE library_id=?
+                    """,
+                    (library_id,),
+                ).fetchone(),
+                "creating library workspace",
+            )
+        return {
+            "library_id": library_id,
+            "body": str(row[0]),
+            "note_x": float(row[1]),
+            "note_y": float(row[2]),
+            "note_width": float(row[3]),
+            "note_height": float(row[4]),
+            "version": int(row[5]),
+            "updated_at": str(row[6]),
+            "cards": self._workspace_cards(library_id),
+        }
+
+    def save_workspace(
+        self,
+        library_id: int,
+        *,
+        body: str,
+        note_x: float,
+        note_y: float,
+        note_width: float,
+        note_height: float,
+    ) -> int:
+        self._require_active_library(library_id)
+        now = utc_now()
+        self.connection.execute(
+            """
+            INSERT INTO library_workspaces(
+                library_id, body, note_x, note_y, note_width, note_height,
+                version, created_at, updated_at
+            ) VALUES(?, ?, ?, ?, ?, ?, 1, ?, ?)
+            ON CONFLICT(library_id) DO UPDATE SET
+                body=excluded.body, note_x=excluded.note_x, note_y=excluded.note_y,
+                note_width=excluded.note_width, note_height=excluded.note_height,
+                version=library_workspaces.version + 1, updated_at=excluded.updated_at
+            """,
+            (library_id, body, note_x, note_y, note_width, note_height, now, now),
+        )
+        row = require_row(
+            self.connection.execute(
+                "SELECT version FROM library_workspaces WHERE library_id=?", (library_id,)
+            ).fetchone(),
+            "saving library workspace",
+        )
+        return int(row[0])
+
+    def add_workspace_card(self, library_id: int, paper_id: int) -> int:
+        self._require_active_library(library_id)
+        if self.connection.execute(
+            "SELECT 1 FROM library_papers WHERE library_id=? AND paper_id=?",
+            (library_id, paper_id),
+        ).fetchone() is None:
+            raise ValueError("Paper is not part of this library")
+        count = int(
+            require_row(
+                self.connection.execute(
+                    "SELECT count(*) FROM library_workspace_cards WHERE library_id=?",
+                    (library_id,),
+                ).fetchone(),
+                "positioning workspace card",
+            )[0]
+        )
+        now = utc_now()
+        self.connection.execute(
+            """
+            INSERT INTO library_workspace_cards(
+                library_id, paper_id, x, y, created_at, updated_at
+            ) VALUES(?, ?, ?, ?, ?, ?)
+            """,
+            (library_id, paper_id, 580 + (count % 2) * 370, 24 + (count // 2) * 390, now, now),
+        )
+        return int(self.connection.last_insert_rowid())
+
+    def update_workspace_card(
+        self, card_id: int, *, x: float, y: float, width: float, height: float
+    ) -> None:
+        self.connection.execute(
+            """
+            UPDATE library_workspace_cards
+            SET x=?, y=?, width=?, height=?, updated_at=? WHERE id=?
+            """,
+            (x, y, width, height, utc_now(), card_id),
+        )
+        if self.connection.changes() == 0:
+            raise LookupError("Workspace card not found")
+
+    def delete_workspace_card(self, card_id: int) -> None:
+        self.connection.execute("DELETE FROM library_workspace_cards WHERE id=?", (card_id,))
+        if self.connection.changes() == 0:
+            raise LookupError("Workspace card not found")
+
+    def _require_active_library(self, library_id: int) -> None:
+        if self.connection.execute(
+            "SELECT 1 FROM libraries WHERE id=? AND deleted_at IS NULL", (library_id,)
+        ).fetchone() is None:
+            raise LookupError("Library not found")
+
+    def _workspace_cards(self, library_id: int) -> list[dict[str, object]]:
+        cards: list[dict[str, object]] = []
+        rows = self.connection.execute(
+            """
+            SELECT c.id, c.paper_id, c.x, c.y, c.width, c.height,
+                p.title_original, p.title_zh,
+                (SELECT a.content FROM abstracts a WHERE a.paper_id=p.id
+                 ORDER BY a.is_preferred DESC, a.id LIMIT 1),
+                (SELECT t.translated_text FROM translations t
+                 WHERE t.paper_id=p.id AND t.field_name='abstract'
+                 ORDER BY t.id DESC LIMIT 1),
+                (SELECT pf.file_id FROM paper_files pf WHERE pf.paper_id=p.id
+                 ORDER BY CASE pf.version_role WHEN 'primary' THEN 0 ELSE 1 END,
+                          pf.created_at DESC LIMIT 1)
+            FROM library_workspace_cards c
+            JOIN papers p ON p.id=c.paper_id
+            WHERE c.library_id=? ORDER BY c.id
+            """,
+            (library_id,),
+        )
+        for row in rows:
+            paper_id = int(row[1])
+            notes = [
+                {
+                    "id": int(note[0]),
+                    "body": str(note[1]),
+                    "updated_at": str(note[2]),
+                }
+                for note in self.connection.execute(
+                    """
+                    SELECT id, body, updated_at FROM paper_notes
+                    WHERE paper_id=? ORDER BY updated_at DESC, id DESC
+                    """,
+                    (paper_id,),
+                )
+            ]
+            cards.append(
+                {
+                    "id": int(row[0]),
+                    "paper_id": paper_id,
+                    "x": float(row[2]),
+                    "y": float(row[3]),
+                    "width": float(row[4]),
+                    "height": float(row[5]),
+                    "title": str(row[6]),
+                    "title_translation": None if row[7] is None else str(row[7]),
+                    "abstract": "" if row[8] is None else str(row[8]),
+                    "abstract_translation": None if row[9] is None else str(row[9]),
+                    "file_id": None if row[10] is None else int(row[10]),
+                    "notes": notes,
+                }
+            )
+        return cards
+
     def export(self, paper_ids: list[int], format_name: str) -> tuple[str, bytes]:
         if not paper_ids:
             raise ValueError("Select at least one paper to export")

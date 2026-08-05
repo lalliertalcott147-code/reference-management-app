@@ -422,6 +422,37 @@ CORE_MIGRATIONS = (
             ON journal_subscriptions(enabled, next_run_at);
         """,
     ),
+    Migration(
+        7,
+        "library_workspace",
+        """
+        CREATE TABLE library_workspaces (
+            library_id INTEGER PRIMARY KEY REFERENCES libraries(id) ON DELETE CASCADE,
+            body TEXT NOT NULL DEFAULT '',
+            note_x REAL NOT NULL DEFAULT 24,
+            note_y REAL NOT NULL DEFAULT 24,
+            note_width REAL NOT NULL DEFAULT 520 CHECK(note_width >= 280),
+            note_height REAL NOT NULL DEFAULT 260 CHECK(note_height >= 180),
+            version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE library_workspace_cards (
+            id INTEGER PRIMARY KEY,
+            library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+            paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            width REAL NOT NULL DEFAULT 340 CHECK(width >= 280),
+            height REAL NOT NULL DEFAULT 360 CHECK(height >= 220),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(library_id, paper_id)
+        );
+        CREATE INDEX library_workspace_cards_library_idx
+            ON library_workspace_cards(library_id, id);
+        """,
+    ),
 )
 
 

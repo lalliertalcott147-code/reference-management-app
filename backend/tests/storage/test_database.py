@@ -51,7 +51,15 @@ def test_fresh_database_has_required_pragmas_schema_and_fts(tmp_path: Path) -> N
             str(row[0])
             for row in core.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        assert {"papers", "translations", "files", "pdf_annotations", "jobs"} <= tables
+        assert {
+            "papers",
+            "translations",
+            "files",
+            "pdf_annotations",
+            "jobs",
+            "library_workspaces",
+            "library_workspace_cards",
+        } <= tables
         core.execute(
             "INSERT INTO paper_fts(paper_id, title_original) VALUES(1, 'photocatalysis')"
         )

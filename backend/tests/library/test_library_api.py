@@ -44,6 +44,44 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
             headers=headers,
         )
         assert note.json()["version"] == 1
+        appended = client.post(
+            "/api/notes/append",
+            json={"paper_id": paper_id, "body": "PDF translated excerpt", "library_id": library_id},
+            headers=headers,
+        )
+        assert appended.json()["version"] == 2
+        workspace = client.get(f"/api/libraries/{library_id}/workspace")
+        assert workspace.status_code == 200
+        assert workspace.json()["cards"] == []
+        saved_workspace = client.put(
+            f"/api/libraries/{library_id}/workspace",
+            json={
+                "body": "global synthesis",
+                "note_x": 30,
+                "note_y": 40,
+                "note_width": 540,
+                "note_height": 280,
+            },
+            headers=headers,
+        )
+        assert saved_workspace.json()["version"] == 2
+        card = client.post(
+            f"/api/libraries/{library_id}/workspace/cards",
+            json={"paper_id": paper_id},
+            headers=headers,
+        )
+        assert card.status_code == 200
+        card_id = card.json()["id"]
+        moved = client.put(
+            f"/api/library-workspace/cards/{card_id}",
+            json={"x": 700, "y": 80, "width": 340, "height": 360},
+            headers=headers,
+        )
+        assert moved.json() == {"updated": True}
+        refreshed_workspace = client.get(f"/api/libraries/{library_id}/workspace").json()
+        assert refreshed_workspace["body"] == "global synthesis"
+        assert refreshed_workspace["cards"][0]["x"] == 700.0
+        assert "PDF translated excerpt" in refreshed_workspace["cards"][0]["notes"][0]["body"]
         tag = client.post(
             "/api/tags",
             json={"name": "kinetics", "paper_ids": [paper_id], "library_id": library_id},
@@ -73,7 +111,7 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
                 .fetchone(),
                 "note version count",
             )[0]
-            == 1
+            == 2
         )
     finally:
         database.close()

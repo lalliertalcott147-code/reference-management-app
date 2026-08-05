@@ -24,7 +24,11 @@ from .api_models import (
     InterestTermRequest,
     JournalSubscriptionRequest,
     LibraryCreateRequest,
+    LibraryWorkspaceCardCreate,
+    LibraryWorkspaceCardUpdate,
+    LibraryWorkspaceRequest,
     ModelDownloadRequest,
+    NoteAppendRequest,
     NoteSaveRequest,
     PaperStateRequest,
     PdfAnnotationRequest,
@@ -37,6 +41,7 @@ from .api_models import (
     SavePaperRequest,
     SettingsUpdate,
     TagRequest,
+    TextTranslationRequest,
     TranslationRequest,
 )
 from .config import AppSettings
@@ -794,6 +799,72 @@ def create_app(
         )
         return {"note_id": note_id, "version": version}
 
+    @app.post("/api/notes/append")
+    def append_note(request: NoteAppendRequest) -> dict[str, int]:
+        note_id, version = library_service().append_note(
+            request.paper_id, request.body, library_id=request.library_id
+        )
+        return {"note_id": note_id, "version": version}
+
+    @app.get("/api/libraries/{library_id}/workspace")
+    def get_library_workspace(library_id: int) -> dict[str, object]:
+        try:
+            return library_service().get_workspace(library_id)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.put("/api/libraries/{library_id}/workspace")
+    def save_library_workspace(
+        library_id: int, request: LibraryWorkspaceRequest
+    ) -> dict[str, int]:
+        try:
+            version = library_service().save_workspace(
+                library_id,
+                body=request.body,
+                note_x=request.note_x,
+                note_y=request.note_y,
+                note_width=request.note_width,
+                note_height=request.note_height,
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"version": version}
+
+    @app.post("/api/libraries/{library_id}/workspace/cards")
+    def add_library_workspace_card(
+        library_id: int, request: LibraryWorkspaceCardCreate
+    ) -> dict[str, int]:
+        try:
+            return {"id": library_service().add_workspace_card(library_id, request.paper_id)}
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (ValueError, apsw.ConstraintError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.put("/api/library-workspace/cards/{card_id}")
+    def update_library_workspace_card(
+        card_id: int, request: LibraryWorkspaceCardUpdate
+    ) -> dict[str, bool]:
+        try:
+            library_service().update_workspace_card(
+                card_id,
+                x=request.x,
+                y=request.y,
+                width=request.width,
+                height=request.height,
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"updated": True}
+
+    @app.delete("/api/library-workspace/cards/{card_id}")
+    def delete_library_workspace_card(card_id: int) -> dict[str, bool]:
+        try:
+            library_service().delete_workspace_card(card_id)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"deleted": True}
+
     @app.post("/api/library/export")
     def export_papers(request: ExportRequest) -> Response:
         filename, content = library_service().export(request.paper_ids, request.format)
@@ -842,6 +913,22 @@ def create_app(
             paper_id=request.paper_id,
             field_name=request.field_name,
             save=request.save,
+            use_glossary=request.use_glossary,
+        )
+        return {"job_id": job_id}
+
+    @app.post("/api/translation/text-jobs")
+    def create_text_translation_job(request: TextTranslationRequest) -> dict[str, int]:
+        if database is None:
+            raise HTTPException(status_code=503, detail="Local database is not ready")
+        exists = database.require_core().execute(
+            "SELECT 1 FROM papers WHERE id=?", (request.paper_id,)
+        ).fetchone()
+        if exists is None:
+            raise HTTPException(status_code=404, detail="Paper not found")
+        job_id = translation().coordinator.submit_text(
+            paper_id=request.paper_id,
+            source_text=request.text.strip(),
             use_glossary=request.use_glossary,
         )
         return {"job_id": job_id}

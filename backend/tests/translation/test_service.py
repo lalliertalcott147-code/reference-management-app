@@ -95,6 +95,44 @@ def test_translation_cache_persistence_and_original_are_independent(tmp_path: Pa
         manager.close()
 
 
+def test_selected_pdf_text_translation_uses_cache_without_overwriting_paper(
+    tmp_path: Path,
+) -> None:
+    manager, paper_id, engine, service = setup_service(tmp_path)
+    try:
+        first = service.translate_text(
+            paper_id=paper_id,
+            source_text="Selected catalyst sentence.",
+            use_glossary=True,
+            cancelled=threading.Event(),
+            progress=lambda _current, _total: None,
+        )
+        second = service.translate_text(
+            paper_id=paper_id,
+            source_text="Selected catalyst sentence.",
+            use_glossary=True,
+            cancelled=threading.Event(),
+            progress=lambda _current, _total: None,
+        )
+        assert first.field_name == "selection"
+        assert first.translated_text == "译:Selected catalyst sentence."
+        assert first.saved is False
+        assert second.from_cache is True
+        assert engine.calls == 1
+        assert require_row(
+            manager.require_core()
+            .execute("SELECT title_zh FROM papers WHERE id=?", (paper_id,))
+            .fetchone(),
+            "paper title",
+        )[0] is None
+        assert require_row(
+            manager.require_core().execute("SELECT count(*) FROM translations").fetchone(),
+            "translation count",
+        )[0] == 0
+    finally:
+        manager.close()
+
+
 def test_user_glossary_crud_changes_version(tmp_path: Path) -> None:
     manager, _paper_id, _engine, _service = setup_service(tmp_path)
     try:

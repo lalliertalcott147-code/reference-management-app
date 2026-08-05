@@ -211,6 +211,57 @@ class TranslationService:
             glossary_id,
         )
 
+    def translate_text(
+        self,
+        *,
+        paper_id: int,
+        source_text: str,
+        use_glossary: bool,
+        cancelled: threading.Event,
+        progress: Callable[[int, int], None],
+        total_timeout: float = 300,
+    ) -> TranslationResult:
+        cleaned = source_text.strip()
+        if not cleaned:
+            raise ValueError("Selected text must not be empty")
+        glossary_repo = GlossaryRepository(self.core)
+        glossary = (
+            glossary_repo.translation_terms(include_builtin=True) if use_glossary else {}
+        )
+        protected_terms = glossary_repo.protected_terms() if use_glossary else []
+        glossary_id = glossary_version(glossary, protected_terms)
+        source_hash = hashlib.sha256(cleaned.encode("utf-8")).hexdigest()
+        cache_key = ":".join(
+            ("translation", source_hash, "zh", self.manifest.version, glossary_id)
+        )
+        cached = self.cache.get(cache_key)
+        if cached is None:
+            translated = self._run_segments(
+                cleaned,
+                glossary,
+                protected_terms,
+                cancelled,
+                progress,
+                total_timeout,
+            )
+            self.cache.put("translation", cache_key, translated.encode("utf-8"))
+            from_cache = False
+        else:
+            translated = cached.decode("utf-8")
+            from_cache = True
+        if cancelled.is_set():
+            raise TranslationCancelled("Translation was cancelled")
+        return TranslationResult(
+            paper_id,
+            "selection",
+            cleaned,
+            translated,
+            False,
+            from_cache,
+            self.manifest.version,
+            glossary_id,
+        )
+
     def _source_text(self, paper_id: int, field_name: str) -> str:
         if field_name == "title":
             row = self.core.execute(
@@ -296,6 +347,24 @@ class TranslationCoordinator:
             )
         return job_id
 
+    def submit_text(self, *, paper_id: int, source_text: str, use_glossary: bool) -> int:
+        job_id = self.jobs.create(
+            "selection_translation",
+            f"selection-translation:{uuid.uuid4().hex}",
+            {
+                "paper_id": paper_id,
+                "source_text": source_text,
+                "use_glossary": use_glossary,
+            },
+        )
+        cancellation = threading.Event()
+        with self._lock:
+            self._cancellations[job_id] = cancellation
+            self._futures[job_id] = self.executor.submit(
+                self._run_text, job_id, paper_id, source_text, use_glossary, cancellation
+            )
+        return job_id
+
     def _run(
         self,
         job_id: int,
@@ -337,6 +406,53 @@ class TranslationCoordinator:
                     "paper_id": result.paper_id,
                     "field_name": result.field_name,
                     "saved": result.saved,
+                    "from_cache": result.from_cache,
+                    "model_version": result.model_version,
+                    "glossary_version": result.glossary_version,
+                },
+            )
+
+    def _run_text(
+        self,
+        job_id: int,
+        paper_id: int,
+        source_text: str,
+        use_glossary: bool,
+        cancellation: threading.Event,
+    ) -> None:
+        if cancellation.is_set():
+            self.jobs.set_status(job_id, "cancelled")
+            return
+        self.jobs.set_status(job_id, "running")
+        try:
+            result = self.service.translate_text(
+                paper_id=paper_id,
+                source_text=source_text,
+                use_glossary=use_glossary,
+                cancelled=cancellation,
+                progress=lambda current, total: self.jobs.update_progress(job_id, current, total),
+            )
+        except TranslationCancelled:
+            self.jobs.set_status(job_id, "cancelled")
+        except Exception as error:
+            self.jobs.set_result(
+                job_id,
+                None,
+                error_code=type(error).__name__,
+                error_message=str(error),
+            )
+        else:
+            result_payload: dict[str, object] = result.__dict__
+            with self._lock:
+                self._results[job_id] = result_payload
+            self.jobs.set_result(
+                job_id,
+                {
+                    "paper_id": result.paper_id,
+                    "field_name": result.field_name,
+                    "source_text": result.source_text,
+                    "translated_text": result.translated_text,
+                    "saved": False,
                     "from_cache": result.from_cache,
                     "model_version": result.model_version,
                     "glossary_version": result.glossary_version,

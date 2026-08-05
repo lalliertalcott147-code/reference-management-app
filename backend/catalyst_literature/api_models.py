@@ -90,6 +90,31 @@ class NoteSaveRequest(BaseModel):
     library_id: int | None = None
 
 
+class NoteAppendRequest(BaseModel):
+    paper_id: int = Field(gt=0)
+    body: str = Field(min_length=1, max_length=100_000)
+    library_id: int | None = Field(default=None, gt=0)
+
+
+class LibraryWorkspaceRequest(BaseModel):
+    body: str = Field(max_length=500_000)
+    note_x: float = Field(ge=0, le=50_000)
+    note_y: float = Field(ge=0, le=50_000)
+    note_width: float = Field(ge=280, le=2_000)
+    note_height: float = Field(ge=180, le=2_000)
+
+
+class LibraryWorkspaceCardCreate(BaseModel):
+    paper_id: int = Field(gt=0)
+
+
+class LibraryWorkspaceCardUpdate(BaseModel):
+    x: float = Field(ge=0, le=50_000)
+    y: float = Field(ge=0, le=50_000)
+    width: float = Field(ge=280, le=2_000)
+    height: float = Field(ge=220, le=2_000)
+
+
 class ExportRequest(BaseModel):
     paper_ids: list[int] = Field(min_length=1)
     format: Literal["bibtex", "ris", "csv"]
@@ -103,6 +128,12 @@ class TranslationRequest(BaseModel):
     paper_id: int = Field(gt=0)
     field_name: Literal["title", "abstract"]
     save: bool = True
+    use_glossary: bool = True
+
+
+class TextTranslationRequest(BaseModel):
+    paper_id: int = Field(gt=0)
+    text: str = Field(min_length=1, max_length=20_000)
     use_glossary: bool = True
 
 
