@@ -23,6 +23,7 @@ class ResearchTopicRequest(BaseModel):
 
 class InterestTermRequest(BaseModel):
     term: str = Field(min_length=1, max_length=160)
+    mapped_term: str | None = Field(default=None, max_length=160)
     term_type: Literal["positive", "negative"]
 
 

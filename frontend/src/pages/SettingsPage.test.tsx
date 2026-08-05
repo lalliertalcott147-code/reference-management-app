@@ -63,4 +63,35 @@ describe("SettingsPage", () => {
       display_name: "Zyyyy",
     }));
   });
+
+  it("saves paired Chinese and English recommendation keywords", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url === "/api/preferences/interest-terms" && init?.method === "POST") {
+        const body = parseJsonBody(init);
+        expect(body).toEqual(expect.objectContaining({
+          term: "光催化",
+          mapped_term: "photocatalysis",
+          term_type: "positive",
+        }));
+        return Promise.resolve(new Response(JSON.stringify({ id: 8 }), { status: 200 }));
+      }
+      const payload = url === "/api/translation/model"
+        ? { state: "missing", running: false }
+        : [];
+      return Promise.resolve(new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SettingsPage settings={SETTINGS} onChange={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("中文关键词"), { target: { value: "光催化" } });
+    fireEvent.change(screen.getByLabelText("英文关键词"), { target: { value: "photocatalysis" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加关键词" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/preferences/interest-terms",
+      expect.objectContaining({ method: "POST" }),
+    ));
+  });
 });

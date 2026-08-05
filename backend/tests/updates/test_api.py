@@ -56,10 +56,17 @@ def test_preferences_saved_search_journal_alert_and_settings_api(tmp_path: Path)
         assert client.get("/api/preferences/topics").json()[0]["name"] == "光催化"
         term = client.post(
             "/api/preferences/interest-terms",
-            json={"term": "conversion", "term_type": "positive"},
+            json={
+                "term": "转化率",
+                "mapped_term": "conversion",
+                "term_type": "positive",
+            },
             headers=headers,
         )
         assert term.status_code == 200
+        listed_terms = client.get("/api/preferences/interest-terms").json()
+        assert listed_terms[0]["term"] == "转化率"
+        assert listed_terms[0]["mapped_term"] == "conversion"
 
         saved = client.post(
             "/api/saved-searches",

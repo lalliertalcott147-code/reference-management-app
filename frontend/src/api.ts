@@ -35,6 +35,7 @@ export interface ResearchTopic {
 export interface InterestTerm {
   id: number;
   term: string;
+  mapped_term: string | null;
   term_type: "positive" | "negative";
 }
 
@@ -145,6 +146,7 @@ export interface SourceStatus {
 export interface SearchResponse {
   papers: MergedPaper[];
   statuses: SourceStatus[];
+  recognized_queries?: string[];
 }
 
 export interface ImportIssue {
@@ -379,9 +381,11 @@ export function fetchInterestTerms(): Promise<InterestTerm[]> {
 export function addInterestTerm(
   term: string,
   termType: InterestTerm["term_type"],
+  mappedTerm?: string,
 ): Promise<{ id: number }> {
   return request("/api/preferences/interest-terms", jsonInit("POST", {
     term,
+    mapped_term: mappedTerm?.trim() || null,
     term_type: termType,
   }));
 }

@@ -79,7 +79,7 @@ h2 { color: #214b46; }
 .connection-bar { display: flex; align-items: center; gap: 10px; color: #5d716e; font-size: 13px; padding: 8px 4px; }
 
 .search-form { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; padding: 18px; background: white; border: 1px solid var(--line); border-radius: 17px; box-shadow: 0 7px 25px rgb(30 74 68 / 5%); }
-.search-box { flex: 1 1 420px; }
+.search-box { flex: 1 1 420px; display: grid; gap: 4px; }.search-box small, .bilingual-query { color: var(--muted); font-size: 11px; }.bilingual-query { margin: -8px 2px 12px; }
 .search-box input, .search-form select, .advanced-search input, .settings-card input { width: 100%; min-height: 44px; border: 1px solid #ccdad6; border-radius: 10px; background: #fbfdfc; color: #203432; padding: 10px 13px; }
 .search-form > select { width: 110px; }
 .advanced-search { flex-basis: 100%; border-top: 1px solid #edf1ef; padding-top: 10px; }

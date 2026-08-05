@@ -326,9 +326,14 @@ def create_app(
         if service is None:
             raise HTTPException(status_code=503, detail="Local database is not ready")
         try:
-            result = service.search(
+            variants: tuple[str, ...] = (request.text,)
+            if request.field in {"topic", "title"} and database is not None:
+                variants = PreferenceService(database.require_core()).bilingual_variants(
+                    request.text
+                )
+            queries = tuple(
                 SearchQuery(
-                    text=request.text,
+                    text=text,
                     field=request.field,
                     page=request.page,
                     page_size=request.page_size,
@@ -336,12 +341,16 @@ def create_app(
                     year_from=request.year_from,
                     year_to=request.year_to,
                     sort=request.sort,
-                ),
+                )
+                for text in variants
+            )
+            result = service.search_variants(
+                queries,
                 refresh=request.refresh,
             )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
-        return asdict(result)
+        return {**asdict(result), "recognized_queries": list(variants)}
 
     @app.get("/api/settings")
     def get_settings() -> dict[str, object]:
@@ -473,7 +482,11 @@ def create_app(
     @app.post("/api/preferences/interest-terms")
     def create_interest_term(request: InterestTermRequest) -> dict[str, int]:
         try:
-            term_id = preferences().add_interest_term(request.term, request.term_type)
+            term_id = preferences().add_interest_term(
+                request.term,
+                request.term_type,
+                mapped_term=request.mapped_term,
+            )
         except (ValueError, apsw.ConstraintError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return {"id": term_id}
