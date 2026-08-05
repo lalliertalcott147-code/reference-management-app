@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "message-type": "work-list",
+  "message": {
+    "total-results": 1,
+    "items": [
+      {
+        "DOI": "10.1000/catalyst.2026",
+        "title": ["Solar driven carbon dioxide conversion on copper catalysts"],
+        "container-title": ["Journal of Catalysis"],
+        "author": [{"given": "Ming", "family": "Li"}],
+        "published-print": {"date-parts": [[2026, 2, 1]]},
+        "abstract": "<jats:p>Copper converts CO2 under sunlight.</jats:p>",
+        "URL": "https://doi.org/10.1000/catalyst.2026"
+      }
+    ]
+  }
+}

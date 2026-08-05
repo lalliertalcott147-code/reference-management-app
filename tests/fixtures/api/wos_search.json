@@ -1,0 +1,14 @@
+{
+  "metadata": {"total": 1, "page": 1, "limit": 20},
+  "hits": [
+    {
+      "uid": "WOS:000000000000001",
+      "title": "Solar-driven CO2 conversion on copper catalysts",
+      "source": {"sourceTitle": "Journal of Catalysis", "publishYear": 2026, "volume": "1", "issue": "2"},
+      "names": {"authors": [{"displayName": "Li, Ming"}, {"displayName": "Smith, Anna"}]},
+      "links": {"record": "https://www.webofscience.com/wos/woscc/full-record/WOS:000000000000001"},
+      "citations": [{"db": "WOS", "count": 7}],
+      "identifiers": {"doi": "10.1000/CATALYST.2026"}
+    }
+  ]
+}

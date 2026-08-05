@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from catalyst_literature.app import create_app
+from catalyst_literature.config import AppPaths, AppSettings
+from catalyst_literature.security import SESSION_COOKIE, SessionManager
+from catalyst_literature.storage.database import DatabaseManager, require_row
+from fastapi.testclient import TestClient
+
+ORIGIN = "http://127.0.0.1:43210"
+
+
+def authenticated_app(tmp_path: Path) -> tuple[TestClient, DatabaseManager]:
+    settings = AppSettings(paths=AppPaths.from_root(tmp_path / "app"))
+    database = DatabaseManager(settings.paths)
+    database.initialize()
+    sessions = SessionManager()
+    app = create_app(settings, origin=ORIGIN, sessions=sessions, database=database)
+    client = TestClient(app)
+    client.cookies.set(SESSION_COOKIE, sessions.session_token)
+    return client, database
+
+
+def test_settings_api_masks_dpapi_keys_and_persists_preferences(tmp_path: Path) -> None:
+    client, database = authenticated_app(tmp_path)
+    try:
+        response = client.put(
+            "/api/settings",
+            json={
+                "wos_api_key": "wos-super-secret-1234",
+                "openalex_api_key": "openalex-secret-5678",
+                "crossref_email": "researcher@example.edu",
+                "personalization_enabled": False,
+                "onboarding_complete": True,
+            },
+            headers={"Origin": ORIGIN},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["wos_api_key"] == "****1234"
+        assert payload["openalex_api_key"] == "****5678"
+        assert payload["crossref_email"] == "researcher@example.edu"
+        assert payload["personalization_enabled"] is False
+        database.checkpoint()
+        raw = database.core_path.read_bytes()
+        assert b"wos-super-secret-1234" not in raw
+        assert b"openalex-secret-5678" not in raw
+    finally:
+        database.close()
+
+
+def test_save_paper_state_library_and_detail_are_idempotent(tmp_path: Path) -> None:
+    client, database = authenticated_app(tmp_path)
+    request = {
+        "liked": True,
+        "saved": True,
+        "reading_status": "reading",
+        "sources": [
+            {
+                "source": "wos",
+                "source_id": "WOS:1",
+                "wos_uid": "WOS:1",
+                "title": "Catalyst paper",
+                "doi": "10.1000/test",
+                "authors": ["Ming Li"],
+                "journal": "Catalysis Journal",
+                "year": 2026,
+                "citations": 4,
+            },
+            {
+                "source": "openalex",
+                "source_id": "W1",
+                "title": "Catalyst paper",
+                "doi": "https://doi.org/10.1000/test",
+                "authors": ["Ming Li"],
+                "journal": "Catalysis Journal",
+                "year": 2026,
+                "abstract": "An open abstract",
+            },
+        ],
+    }
+    try:
+        first = client.post("/api/papers/save", json=request, headers={"Origin": ORIGIN})
+        second = client.post("/api/papers/save", json=request, headers={"Origin": ORIGIN})
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["paper_id"] == second.json()["paper_id"]
+        paper_id = first.json()["paper_id"]
+        detail = client.get(f"/api/papers/{paper_id}")
+        assert detail.status_code == 200
+        assert detail.json()["liked"] is True
+        assert detail.json()["reading_status"] == "reading"
+        assert detail.json()["abstract"] == "An open abstract"
+        assert len(detail.json()["sources"]) == 2
+        core = database.require_core()
+        assert require_row(core.execute("SELECT count(*) FROM papers").fetchone(), "count")[0] == 1
+        assert require_row(
+            core.execute("SELECT count(*) FROM library_papers").fetchone(), "count"
+        )[0] == 1
+    finally:
+        database.close()

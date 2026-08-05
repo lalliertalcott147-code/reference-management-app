@@ -1,0 +1,27 @@
+{
+  "meta": {"count": 1, "page": 1, "per_page": 20, "next_cursor": null, "cost_usd": 0.0001},
+  "results": [
+    {
+      "id": "https://openalex.org/W123456789",
+      "doi": "https://doi.org/10.1000/catalyst.2026",
+      "display_name": "Solar-driven CO2 conversion on copper catalysts",
+      "publication_year": 2026,
+      "cited_by_count": 5,
+      "authorships": [
+        {"author": {"display_name": "Ming Li"}},
+        {"author": {"display_name": "Anna Smith"}}
+      ],
+      "primary_location": {
+        "landing_page_url": "https://openalex.org/W123456789",
+        "source": {"display_name": "Journal of Catalysis"}
+      },
+      "abstract_inverted_index": {
+        "Copper": [0],
+        "catalysts": [1],
+        "convert": [2],
+        "carbon": [3],
+        "dioxide": [4]
+      }
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+# Python environments, bytecode and tool caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node.js and package-manager state
+node_modules/
+.pnpm-store/
+npm-debug.log*
+pnpm-debug.log*
+
+# Generated frontend, Python and release outputs
+dist/
+build/
+*.zip
+catalyst-preflight-probe.spec
+
+# Downloaded native runtimes and local models
+vendor/downloads/
+vendor/llama.cpp/
+*.gguf
+*.onnx
+*.pdmodel
+*.pdiparams
+
+# Test-generated and local runtime data
+tests/artifacts/
+.dev-data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.part
+*.tmp
+*.log
+
+# Credentials and machine-local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+credentials.json
+secrets.json
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini

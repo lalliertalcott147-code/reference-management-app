@@ -1,0 +1,22 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config --import-mode=importlib"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+explicit_package_bases = true
+mypy_path = "backend"
+warn_unused_ignores = true
+exclude = ['^build/', '^dist/', '^\.venv/']
+
+[[tool.mypy.overrides]]
+module = ["apsw", "paddle", "paddleocr", "pypdfium2"]
+ignore_missing_imports = true

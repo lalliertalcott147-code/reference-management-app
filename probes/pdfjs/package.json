@@ -1,0 +1,11 @@
+{
+  "name": "catalyst-literature-pdfjs-probe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node probe.mjs"
+  },
+  "dependencies": {
+    "pdfjs-dist": "6.1.200"
+  }
+}
