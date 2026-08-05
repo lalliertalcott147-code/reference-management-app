@@ -7,6 +7,7 @@ from urllib.parse import unquote
 
 IGNORED_PARTS = {
     ".git",
+    ".dev-data",
     ".mypy_cache",
     ".pnpm-store",
     ".pytest_cache",
