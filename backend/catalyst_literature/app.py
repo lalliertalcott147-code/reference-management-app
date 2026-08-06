@@ -24,7 +24,14 @@ from .api_models import (
     InterestTermRequest,
     JournalSubscriptionRequest,
     LibraryCreateRequest,
+    LibraryPaperAddRequest,
+    LibraryWorkspaceCardCreate,
+    LibraryWorkspaceCardUpdate,
+    LibraryWorkspaceElementCreate,
+    LibraryWorkspaceElementUpdate,
+    LibraryWorkspaceRequest,
     ModelDownloadRequest,
+    NoteAppendRequest,
     NoteSaveRequest,
     PaperStateRequest,
     PdfAnnotationRequest,
@@ -37,6 +44,7 @@ from .api_models import (
     SavePaperRequest,
     SettingsUpdate,
     TagRequest,
+    TextTranslationRequest,
     TranslationRequest,
 )
 from .config import AppSettings
@@ -49,6 +57,7 @@ from .pdfs.analysis import PdfAnalysisError
 from .pdfs.ingest import MAX_PDF_BYTES, PdfUploadError, new_upload_token
 from .pdfs.reader import PdfReaderService
 from .pdfs.wiring import PdfRuntime
+from .profile import MAX_AVATAR_BYTES, AvatarError, AvatarStore
 from .search.merge import merge_records
 from .search.models import PaperRecord, SearchQuery
 from .search.persistence import SearchResultRepository
@@ -219,6 +228,7 @@ def create_app(
         if database is not None
         else None
     )
+    avatar_store = AvatarStore(settings.paths)
     resolved_search_service = search_service or (
         build_search_service(database) if database is not None else None
     )
@@ -260,7 +270,7 @@ def create_app(
             if local_pdf is not None:
                 local_pdf.close()
 
-    app = FastAPI(title="Catalyst Literature", version=__version__, lifespan=lifespan)
+    app = FastAPI(title="文献管理器", version=__version__, lifespan=lifespan)
     app.add_middleware(
         LocalSessionMiddleware,
         sessions=session_manager,
@@ -319,9 +329,14 @@ def create_app(
         if service is None:
             raise HTTPException(status_code=503, detail="Local database is not ready")
         try:
-            result = service.search(
+            variants: tuple[str, ...] = (request.text,)
+            if request.field in {"topic", "title"} and database is not None:
+                variants = PreferenceService(database.require_core()).bilingual_variants(
+                    request.text
+                )
+            queries = tuple(
                 SearchQuery(
-                    text=request.text,
+                    text=text,
                     field=request.field,
                     page=request.page,
                     page_size=request.page_size,
@@ -329,12 +344,16 @@ def create_app(
                     year_from=request.year_from,
                     year_to=request.year_to,
                     sort=request.sort,
-                ),
+                )
+                for text in variants
+            )
+            result = service.search_variants(
+                queries,
                 refresh=request.refresh,
             )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
-        return asdict(result)
+        return {**asdict(result), "recognized_queries": list(variants)}
 
     @app.get("/api/settings")
     def get_settings() -> dict[str, object]:
@@ -352,6 +371,8 @@ def create_app(
                 "automatic_search_daily_limit", 10
             ),
             "onboarding_complete": values.get("onboarding_complete", False),
+            "avatar_url": avatar_store.url(),
+            "display_name": values.get("display_name", "研究者"),
             "storage": str(database.paths.root),
             "cache_limit_mb": 500,
         }
@@ -377,10 +398,38 @@ def create_app(
             )
         if request.onboarding_complete is not None:
             values.set("onboarding_complete", request.onboarding_complete)
+        if request.display_name is not None:
+            display_name = " ".join(request.display_name.split())
+            if not display_name:
+                raise HTTPException(status_code=422, detail="显示名称不能为空")
+            values.set("display_name", display_name)
         app.state.search_service = build_search_service(database)
         if local_updates is not None:
             local_updates.search_service = app.state.search_service
         return get_settings()
+
+    @app.get("/api/profile/avatar")
+    def get_avatar() -> FileResponse:
+        avatar = avatar_store.current()
+        if avatar is None:
+            raise HTTPException(status_code=404, detail="尚未设置个人头像")
+        return FileResponse(avatar.path, media_type=avatar.media_type)
+
+    @app.post("/api/profile/avatar")
+    async def upload_avatar(
+        file: Annotated[UploadFile, File(description="PNG、JPEG 或 WebP 头像")],
+    ) -> dict[str, str]:
+        try:
+            content = await file.read(MAX_AVATAR_BYTES + 1)
+            avatar_store.save(content)
+        except AvatarError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        finally:
+            await file.close()
+        avatar_url = avatar_store.url()
+        if avatar_url is None:
+            raise HTTPException(status_code=500, detail="头像保存失败")
+        return {"avatar_url": avatar_url}
 
     def preferences() -> PreferenceService:
         if database is None:
@@ -436,7 +485,11 @@ def create_app(
     @app.post("/api/preferences/interest-terms")
     def create_interest_term(request: InterestTermRequest) -> dict[str, int]:
         try:
-            term_id = preferences().add_interest_term(request.term, request.term_type)
+            term_id = preferences().add_interest_term(
+                request.term,
+                request.term_type,
+                mapped_term=request.mapped_term,
+            )
         except (ValueError, apsw.ConstraintError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         return {"id": term_id}
@@ -481,6 +534,16 @@ def create_app(
             return {"new_count": updates().run_journal(subscription_id)}
         except Exception as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
+
+    @app.get("/api/journals/subscriptions/{subscription_id}/papers")
+    def list_journal_papers(
+        subscription_id: int,
+        limit: int = Query(default=50, ge=1, le=100),
+    ) -> list[dict[str, object]]:
+        try:
+            return updates().list_journal_papers(subscription_id, limit=limit)
+        except ValueError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.get("/api/saved-searches")
     def list_saved_searches() -> list[dict[str, object]]:
@@ -699,6 +762,16 @@ def create_app(
         except (ValueError, apsw.ConstraintError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
+    @app.post("/api/libraries/{library_id}/papers")
+    def add_paper_to_library(
+        library_id: int, request: LibraryPaperAddRequest
+    ) -> dict[str, bool]:
+        try:
+            added = library_service().add_paper(library_id, request.paper_id)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"added": added}
+
     @app.put("/api/libraries/{library_id}")
     def rename_library(library_id: int, request: LibraryCreateRequest) -> dict[str, bool]:
         try:
@@ -762,6 +835,176 @@ def create_app(
         )
         return {"note_id": note_id, "version": version}
 
+    @app.post("/api/notes/append")
+    def append_note(request: NoteAppendRequest) -> dict[str, int]:
+        note_id, version = library_service().append_note(
+            request.paper_id, request.body, library_id=request.library_id
+        )
+        return {"note_id": note_id, "version": version}
+
+    @app.get("/api/libraries/{library_id}/workspace")
+    def get_library_workspace(library_id: int) -> dict[str, object]:
+        try:
+            return library_service().get_workspace(library_id)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/api/library/workspace")
+    def get_all_papers_workspace() -> dict[str, object]:
+        return library_service().get_workspace(None)
+
+    @app.put("/api/libraries/{library_id}/workspace")
+    def save_library_workspace(
+        library_id: int, request: LibraryWorkspaceRequest
+    ) -> dict[str, int]:
+        try:
+            version = library_service().save_workspace(
+                library_id,
+                body=request.body,
+                note_x=request.note_x,
+                note_y=request.note_y,
+                note_width=request.note_width,
+                note_height=request.note_height,
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"version": version}
+
+    @app.put("/api/library/workspace")
+    def save_all_papers_workspace(request: LibraryWorkspaceRequest) -> dict[str, int]:
+        version = library_service().save_workspace(
+            None,
+            body=request.body,
+            note_x=request.note_x,
+            note_y=request.note_y,
+            note_width=request.note_width,
+            note_height=request.note_height,
+        )
+        return {"version": version}
+
+    @app.post("/api/libraries/{library_id}/workspace/cards")
+    def add_library_workspace_card(
+        library_id: int, request: LibraryWorkspaceCardCreate
+    ) -> dict[str, int]:
+        try:
+            return {"id": library_service().add_workspace_card(library_id, request.paper_id)}
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (ValueError, apsw.ConstraintError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/api/library/workspace/cards")
+    def add_all_papers_workspace_card(
+        request: LibraryWorkspaceCardCreate,
+    ) -> dict[str, int]:
+        try:
+            return {"id": library_service().add_workspace_card(None, request.paper_id)}
+        except (ValueError, apsw.ConstraintError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    def create_workspace_element(
+        library_id: int | None, request: LibraryWorkspaceElementCreate
+    ) -> dict[str, int]:
+        try:
+            element_id = library_service().create_workspace_element(
+                library_id,
+                element_type=request.element_type,
+                x=request.x,
+                y=request.y,
+                width=request.width,
+                height=request.height,
+                rotation=request.rotation,
+                content=request.content,
+                text_color=request.text_color,
+                fill_color=request.fill_color,
+                border_color=request.border_color,
+                border_width=request.border_width,
+                font_size=request.font_size,
+                font_family=request.font_family,
+                text_align=request.text_align,
+                z_index=request.z_index,
+                group_id=request.group_id,
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (ValueError, apsw.ConstraintError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return {"id": element_id}
+
+    @app.post("/api/libraries/{library_id}/workspace/elements")
+    def add_library_workspace_element(
+        library_id: int, request: LibraryWorkspaceElementCreate
+    ) -> dict[str, int]:
+        return create_workspace_element(library_id, request)
+
+    @app.post("/api/library/workspace/elements")
+    def add_all_papers_workspace_element(
+        request: LibraryWorkspaceElementCreate,
+    ) -> dict[str, int]:
+        return create_workspace_element(None, request)
+
+    @app.put("/api/library-workspace/cards/{card_id}")
+    def update_library_workspace_card(
+        card_id: int, request: LibraryWorkspaceCardUpdate
+    ) -> dict[str, bool]:
+        try:
+            library_service().update_workspace_card(
+                card_id,
+                x=request.x,
+                y=request.y,
+                width=request.width,
+                height=request.height,
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"updated": True}
+
+    @app.delete("/api/library-workspace/cards/{card_id}")
+    def delete_library_workspace_card(card_id: int) -> dict[str, bool]:
+        try:
+            library_service().delete_workspace_card(card_id)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"deleted": True}
+
+    @app.put("/api/library-workspace/elements/{element_id}")
+    def update_library_workspace_element(
+        element_id: int, request: LibraryWorkspaceElementUpdate
+    ) -> dict[str, bool]:
+        try:
+            library_service().update_workspace_element(
+                element_id,
+                element_type=request.element_type,
+                x=request.x,
+                y=request.y,
+                width=request.width,
+                height=request.height,
+                rotation=request.rotation,
+                content=request.content,
+                text_color=request.text_color,
+                fill_color=request.fill_color,
+                border_color=request.border_color,
+                border_width=request.border_width,
+                font_size=request.font_size,
+                font_family=request.font_family,
+                text_align=request.text_align,
+                z_index=request.z_index,
+                group_id=request.group_id,
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (ValueError, apsw.ConstraintError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return {"updated": True}
+
+    @app.delete("/api/library-workspace/elements/{element_id}")
+    def delete_library_workspace_element(element_id: int) -> dict[str, bool]:
+        try:
+            library_service().delete_workspace_element(element_id)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"deleted": True}
+
     @app.post("/api/library/export")
     def export_papers(request: ExportRequest) -> Response:
         filename, content = library_service().export(request.paper_ids, request.format)
@@ -810,6 +1053,22 @@ def create_app(
             paper_id=request.paper_id,
             field_name=request.field_name,
             save=request.save,
+            use_glossary=request.use_glossary,
+        )
+        return {"job_id": job_id}
+
+    @app.post("/api/translation/text-jobs")
+    def create_text_translation_job(request: TextTranslationRequest) -> dict[str, int]:
+        if database is None:
+            raise HTTPException(status_code=503, detail="Local database is not ready")
+        exists = database.require_core().execute(
+            "SELECT 1 FROM papers WHERE id=?", (request.paper_id,)
+        ).fetchone()
+        if exists is None:
+            raise HTTPException(status_code=404, detail="Paper not found")
+        job_id = translation().coordinator.submit_text(
+            paper_id=request.paper_id,
+            source_text=request.text.strip(),
             use_glossary=request.use_glossary,
         )
         return {"job_id": job_id}
@@ -1191,6 +1450,6 @@ def create_app(
 
         @app.get("/")
         def development_root() -> dict[str, str]:
-            return {"app": "Catalyst Literature", "frontend": "not built"}
+            return {"app": "文献管理器", "frontend": "not built"}
 
     return app

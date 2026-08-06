@@ -32,7 +32,11 @@ try {
     if (-not (Test-Path $preflightExecutable)) {
         Invoke-Checked 'M0 packaged probe build' { & (Join-Path $workspace 'scripts\build-m0-probe.ps1') }
     }
-    Invoke-Checked 'All Python tests' { & $python -m pytest tests backend/tests -q }
+    $pytestBaseTemp = Join-Path $workspace 'build\test-artifacts\pytest-verify'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $pytestBaseTemp) -Force | Out-Null
+    Invoke-Checked 'All Python tests' {
+        & $python -m pytest tests backend/tests -q --ignore=tests/artifacts "--basetemp=$pytestBaseTemp"
+    }
     Invoke-Checked 'Frontend ESLint' { & $node frontend/node_modules/eslint/bin/eslint.js frontend/src }
     Invoke-Checked 'Frontend typecheck' { & $node frontend/node_modules/typescript/bin/tsc -b frontend --pretty false }
     Invoke-Checked 'Frontend unit tests' { & $node frontend/node_modules/vitest/vitest.mjs run --root frontend }

@@ -121,13 +121,14 @@ export function SearchPage() {
 
   return <div className="page search-page">
     <header className="page-header">
-      <div><p className="eyebrow">多来源检索</p><h1>检索催化文献</h1></div>
+      <div><p className="eyebrow">多来源检索</p><h1>检索文献</h1></div>
       <a className="secondary-button" href="#import">导入 WoS 记录</a>
     </header>
     <form className="search-form" onSubmit={submit}>
       <label className="search-box">
         <span className="sr-only">检索词</span>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入关键词、题名、作者或 DOI" />
+        <small>双语关键词可写成“光催化 / photocatalysis”；设置中保存的中英配对会自动识别。</small>
       </label>
       <select value={field} onChange={(event) => setField(event.target.value)} aria-label="检索字段">
         <option value="topic">主题</option><option value="title">题名</option>
@@ -144,6 +145,7 @@ export function SearchPage() {
     {state.kind === "ready" && <div className="source-statuses" aria-label="来源状态">
       {state.result.statuses.map((status) => <span key={status.source} className={`source-state ${status.state}`} title={status.message}>{sourceLabels[status.source]} · {status.state}</span>)}
     </div>}
+    {state.kind === "ready" && (state.result.recognized_queries?.length ?? 0) > 1 && <p className="bilingual-query" role="status">已同时识别：{state.result.recognized_queries?.join(" · ")}</p>}
     {state.kind === "error" && <div className="notice error" role="alert"><strong>检索没有完成</strong><span>{state.message}</span><button type="button" onClick={() => void runSearch(true)}>重新获取</button></div>}
     {state.kind === "ready" && <div className="result-toolbar">
       <strong>{visiblePapers.length} 条合并结果</strong>

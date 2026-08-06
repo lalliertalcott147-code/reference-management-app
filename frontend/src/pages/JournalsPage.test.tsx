@@ -25,15 +25,26 @@ it("follows a journal and manually checks saved searches", async () => {
         last_error: null, last_new_count: 0,
       }]), { status: 200, headers: { "Content-Type": "application/json" } }));
     }
+    if (url === "/api/journals/subscriptions/1/papers") {
+      return Promise.resolve(new Response(JSON.stringify([{
+        id: 9, title: "Newest catalyst paper", journal: "Catalysis Today",
+        year: 2026, doi: "10.1000/new", abstract: "Latest abstract",
+        url: "https://example.test/paper", first_seen_at: "now", last_seen_at: "now",
+      }]), { status: 200, headers: { "Content-Type": "application/json" } }));
+    }
     if (url.endsWith("/run")) return Promise.resolve(new Response(JSON.stringify({ new_count: 1 }), { status: 200, headers: { "Content-Type": "application/json" } }));
     return Promise.resolve(new Response(JSON.stringify({ id: 7 }), { status: 200, headers: { "Content-Type": "application/json" } }));
   });
   vi.stubGlobal("fetch", fetchMock);
   render(<JournalsPage />);
   expect(await screen.findByText("Catalysis Today")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /Catalysis Today.*打开并刷新/ }));
+  expect(await screen.findByRole("heading", { name: "Newest catalyst paper" })).toBeInTheDocument();
+  expect(screen.getByText("Latest abstract")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith("/api/journals/subscriptions/1/papers", expect.anything());
   fireEvent.click(screen.getAllByRole("button", { name: "立即运行" })[0]);
   expect(await screen.findByText(/发现 1 篇此前未见/)).toBeInTheDocument();
   fireEvent.change(screen.getByPlaceholderText("例如 Catalysis Today"), { target: { value: "ACS Catalysis" } });
-  fireEvent.click(screen.getByRole("button", { name: "关注" }));
+  fireEvent.click(screen.getByRole("button", { name: "添加期刊" }));
   expect(fetchMock).toHaveBeenCalledWith("/api/journals/subscriptions", expect.objectContaining({ method: "POST" }));
 });

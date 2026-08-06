@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 from catalyst_literature.app import create_app
@@ -9,6 +10,9 @@ from catalyst_literature.storage.database import DatabaseManager, require_row
 from fastapi.testclient import TestClient
 
 ORIGIN = "http://127.0.0.1:43210"
+ONE_PIXEL_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 
 def authenticated_app(tmp_path: Path) -> tuple[TestClient, DatabaseManager]:
@@ -46,6 +50,67 @@ def test_settings_api_masks_dpapi_keys_and_persists_preferences(tmp_path: Path) 
         raw = database.core_path.read_bytes()
         assert b"wos-super-secret-1234" not in raw
         assert b"openalex-secret-5678" not in raw
+    finally:
+        database.close()
+
+
+def test_user_visible_api_product_name_is_reference_manager(tmp_path: Path) -> None:
+    client, database = authenticated_app(tmp_path)
+    try:
+        assert client.get("/openapi.json").json()["info"]["title"] == "文献管理器"
+    finally:
+        database.close()
+
+
+def test_avatar_upload_validates_and_persists_local_image(tmp_path: Path) -> None:
+    client, database = authenticated_app(tmp_path)
+    try:
+        invalid = client.post(
+            "/api/profile/avatar",
+            files={"file": ("avatar.svg", b"<svg></svg>", "image/svg+xml")},
+            headers={"Origin": ORIGIN},
+        )
+        assert invalid.status_code == 422
+
+        uploaded = client.post(
+            "/api/profile/avatar",
+            files={"file": ("avatar.png", ONE_PIXEL_PNG, "image/png")},
+            headers={"Origin": ORIGIN},
+        )
+        assert uploaded.status_code == 200
+        avatar_url = uploaded.json()["avatar_url"]
+        assert avatar_url.startswith("/api/profile/avatar?v=")
+        assert (database.paths.root / "profile" / "avatar.png").read_bytes() == ONE_PIXEL_PNG
+
+        downloaded = client.get(avatar_url)
+        assert downloaded.status_code == 200
+        assert downloaded.headers["content-type"] == "image/png"
+        assert downloaded.content == ONE_PIXEL_PNG
+        assert client.get("/api/settings").json()["avatar_url"] == avatar_url
+    finally:
+        database.close()
+
+
+def test_display_name_is_user_configurable_and_persistent(tmp_path: Path) -> None:
+    client, database = authenticated_app(tmp_path)
+    try:
+        assert client.get("/api/settings").json()["display_name"] == "研究者"
+        updated = client.put(
+            "/api/settings",
+            json={"display_name": "  Zyyyy   Researcher  "},
+            headers={"Origin": ORIGIN},
+        )
+        assert updated.status_code == 200
+        assert updated.json()["display_name"] == "Zyyyy Researcher"
+        assert client.get("/api/settings").json()["display_name"] == "Zyyyy Researcher"
+
+        blank = client.put(
+            "/api/settings",
+            json={"display_name": "   "},
+            headers={"Origin": ORIGIN},
+        )
+        assert blank.status_code == 422
+        assert client.get("/api/settings").json()["display_name"] == "Zyyyy Researcher"
     finally:
         database.close()
 

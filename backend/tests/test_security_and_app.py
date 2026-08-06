@@ -107,6 +107,10 @@ def test_search_endpoint_uses_authenticated_local_service(tmp_path: Path) -> Non
             headers={"Origin": "http://127.0.0.1:43210"},
         )
         assert response.status_code == 200
-        assert response.json() == {"papers": [], "statuses": []}
+        assert response.json() == {
+            "papers": [],
+            "statuses": [],
+            "recognized_queries": ["photocatalysis"],
+        }
     finally:
         database.close()

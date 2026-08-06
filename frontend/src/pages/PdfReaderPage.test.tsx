@@ -76,5 +76,6 @@ describe("PdfReaderPage", () => {
     });
     expect(screen.getByRole("button", { name: "第 2 页匹配" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "高亮" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "翻译选中文本" })).toBeDisabled();
   });
 });

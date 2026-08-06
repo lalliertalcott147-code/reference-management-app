@@ -130,6 +130,173 @@ def test_note_autosave_versions_and_fts_are_transactional(tmp_path: Path) -> Non
         manager.close()
 
 
+def test_global_note_workspace_cards_collect_article_context_and_persist_layout(
+    tmp_path: Path,
+) -> None:
+    manager, service, paper_id, library_id = setup_library(tmp_path)
+    core = manager.require_core()
+    try:
+        core.execute(
+            """
+            INSERT INTO abstracts(
+                paper_id, language, content, content_hash, is_preferred, created_at
+            ) VALUES(?, 'en', 'Original abstract', 'workspace-abstract', 1, ?)
+            """,
+            (paper_id, utc_now()),
+        )
+        core.execute(
+            "UPDATE papers SET title_zh='中文题目' WHERE id=?", (paper_id,)
+        )
+        core.execute(
+            """
+            INSERT INTO translations(
+                paper_id, field_name, source_hash, target_language, model_version,
+                glossary_version, translated_text, created_at
+            ) VALUES(?, 'abstract', 'workspace-source', 'zh', 'test', 'none',
+                     '中文摘要', ?)
+            """,
+            (paper_id, utc_now()),
+        )
+        note_id, _version = service.save_note(
+            paper_id, "first article note", library_id=library_id
+        )
+        same_note, version = service.append_note(
+            paper_id, "translated excerpt", library_id=library_id
+        )
+        assert (same_note, version) == (note_id, 2)
+
+        initial = service.get_workspace(library_id)
+        assert initial["body"] == ""
+        assert initial["cards"] == []
+        assert service.save_workspace(
+            library_id,
+            body="overall synthesis",
+            note_x=80,
+            note_y=90,
+            note_width=600,
+            note_height=320,
+        ) == 2
+        card_id = service.add_workspace_card(library_id, paper_id)
+        service.update_workspace_card(card_id, x=710, y=120, width=360, height=420)
+
+        workspace = service.get_workspace(library_id)
+        assert workspace["body"] == "overall synthesis"
+        assert (workspace["note_x"], workspace["note_y"]) == (80.0, 90.0)
+        cards = workspace["cards"]
+        assert isinstance(cards, list)
+        card = cards[0]
+        assert card["title_translation"] == "中文题目"
+        assert card["abstract"] == "Original abstract"
+        assert card["abstract_translation"] == "中文摘要"
+        assert card["x"] == 710.0
+        assert card["notes"][0]["body"] == "first article note\n\ntranslated excerpt"
+
+        service.save_note(paper_id, "all-papers article note")
+        assert service.get_workspace(None)["body"] == ""
+        assert service.save_workspace(
+            None,
+            body="all-papers synthesis",
+            note_x=36,
+            note_y=48,
+            note_width=640,
+            note_height=360,
+        ) == 2
+        service.add_workspace_card(None, paper_id)
+        second_library = service.create_library("项目 B")
+        service.add_paper(second_library, paper_id)
+        service.save_workspace(
+            second_library,
+            body="project B synthesis",
+            note_x=40,
+            note_y=50,
+            note_width=520,
+            note_height=260,
+        )
+
+        assert service.get_workspace(None)["body"] == "all-papers synthesis"
+        assert service.get_workspace(None)["cards"][0]["notes"][0]["body"] == (
+            "all-papers article note"
+        )
+        assert service.get_workspace(library_id)["body"] == "overall synthesis"
+        assert service.get_workspace(second_library)["body"] == "project B synthesis"
+
+        text_id = service.create_workspace_element(
+            None,
+            element_type="text",
+            x=180,
+            y=460,
+            width=280,
+            height=150,
+            content="movable conclusion",
+            text_color="#315F59",
+            font_size=22,
+            z_index=4,
+        )
+        line_id = service.create_workspace_element(
+            library_id,
+            element_type="line",
+            x=200,
+            y=520,
+            width=240,
+            height=20,
+            content="",
+            border_color="#C86B45",
+        )
+        service.update_workspace_element(
+            text_id,
+            element_type="text",
+            x=260,
+            y=540,
+            width=300,
+            height=160,
+            content="updated movable conclusion",
+            rotation=18,
+            text_color="#224466",
+            fill_color="#FFF4CC",
+            border_color="#224466",
+            border_width=3,
+            font_size=24,
+            font_family="Arial",
+            text_align="center",
+            z_index=8,
+            group_id="research-group",
+        )
+        all_element = service.get_workspace(None)["elements"][0]
+        assert all_element["content"] == "updated movable conclusion"
+        assert (all_element["x"], all_element["y"]) == (260.0, 540.0)
+        assert (all_element["rotation"], all_element["z_index"]) == (18.0, 8)
+        assert all_element["group_id"] == "research-group"
+        assert service.get_workspace(library_id)["elements"][0]["id"] == line_id
+        service.delete_workspace_element(line_id)
+        assert service.get_workspace(library_id)["elements"] == []
+        service.update_workspace_element(
+            line_id,
+            element_type="arrow",
+            x=220,
+            y=560,
+            width=260,
+            height=24,
+            content="",
+            border_color="#C86B45",
+        )
+        assert service.get_workspace(library_id)["elements"][0]["element_type"] == "arrow"
+        image_id = service.create_workspace_element(
+            None,
+            element_type="image",
+            x=400,
+            y=700,
+            width=320,
+            height=220,
+            content="data:image/png;base64,aW1hZ2U=",
+        )
+        assert {item["id"] for item in service.get_workspace(None)["elements"]} == {
+            text_id,
+            image_id,
+        }
+    finally:
+        manager.close()
+
+
 def test_like_saved_and_reading_status_are_independent(tmp_path: Path) -> None:
     manager, service, paper_id, _library_id = setup_library(tmp_path)
     try:

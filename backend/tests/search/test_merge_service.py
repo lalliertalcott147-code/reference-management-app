@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from catalyst_literature.config import AppPaths
+from catalyst_literature.app import create_app
+from catalyst_literature.config import AppPaths, AppSettings
 from catalyst_literature.search.cache import SearchCache
 from catalyst_literature.search.merge import merge_records
 from catalyst_literature.search.models import (
@@ -14,8 +15,11 @@ from catalyst_literature.search.models import (
 )
 from catalyst_literature.search.persistence import SearchResultRepository
 from catalyst_literature.search.service import SearchService
+from catalyst_literature.security import SESSION_COOKIE, SessionManager
 from catalyst_literature.storage.cache import CacheManager
 from catalyst_literature.storage.database import DatabaseManager, require_row
+from catalyst_literature.updates import PreferenceService
+from fastapi.testclient import TestClient
 
 
 class StubSource:
@@ -28,6 +32,16 @@ class StubSource:
         if isinstance(self.page, SourceError):
             raise self.page
         return self.page
+
+
+class RecordingSource(StubSource):
+    def __init__(self, page: SearchPage) -> None:
+        super().__init__(page)
+        self.queries: list[str] = []
+
+    def search(self, query: SearchQuery) -> SearchPage:
+        self.queries.append(query.text)
+        return super().search(query)
 
 
 def records() -> list[PaperRecord]:
@@ -111,6 +125,61 @@ def test_search_cache_offline_refresh_and_failure_isolation(tmp_path: Path) -> N
         assert offline.statuses[1].state == "offline"
         refreshed = service.search(query, refresh=True)
         assert refreshed.statuses[0].state == "success"
+    finally:
+        manager.close()
+
+
+def test_bilingual_search_runs_each_keyword_and_deduplicates_the_same_paper(
+    tmp_path: Path,
+) -> None:
+    manager = DatabaseManager(AppPaths.from_root(tmp_path / "app"))
+    manager.initialize()
+    cache = SearchCache(CacheManager(manager.require_cache(), manager.paths.cache))
+    source = RecordingSource(SearchPage("wos", (records()[0],), 1))
+    service = SearchService((source,), cache)
+    try:
+        result = service.search_variants(
+            (SearchQuery("光催化"), SearchQuery("photocatalysis"))
+        )
+        assert source.queries == ["光催化", "photocatalysis"]
+        assert len(result.papers) == 1
+        assert len(result.papers[0].sources) == 1
+        assert result.statuses[0].state == "success"
+    finally:
+        manager.close()
+
+
+def test_search_api_expands_a_saved_bilingual_keyword_pair(tmp_path: Path) -> None:
+    settings = AppSettings(paths=AppPaths.from_root(tmp_path / "app"))
+    manager = DatabaseManager(settings.paths)
+    manager.initialize()
+    PreferenceService(manager.require_core()).add_interest_term(
+        "光催化", "positive", mapped_term="photocatalysis"
+    )
+    cache = SearchCache(CacheManager(manager.require_cache(), manager.paths.cache))
+    source = RecordingSource(SearchPage("wos", (records()[0],), 1))
+    service = SearchService((source,), cache)
+    sessions = SessionManager()
+    origin = "http://127.0.0.1:43210"
+    app = create_app(
+        settings,
+        origin=origin,
+        sessions=sessions,
+        database=manager,
+        search_service=service,
+    )
+    try:
+        with TestClient(app) as client:
+            client.cookies.set(SESSION_COOKIE, sessions.session_token)
+            response = client.post(
+                "/api/search",
+                json={"text": "光催化", "field": "topic"},
+                headers={"Origin": origin},
+            )
+            assert response.status_code == 200
+            assert response.json()["recognized_queries"] == ["光催化", "photocatalysis"]
+            assert len(response.json()["papers"]) == 1
+            assert source.queries == ["光催化", "photocatalysis"]
     finally:
         manager.close()
 

@@ -32,6 +32,24 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
         libraries = client.get("/api/libraries")
         assert libraries.status_code == 200
         assert libraries.json()[0]["paper_count"] == 1
+        second_library = client.post(
+            "/api/libraries", json={"name": "PDF Collection"}, headers=headers
+        ).json()["id"]
+        assigned = client.post(
+            f"/api/libraries/{second_library}/papers",
+            json={"paper_id": paper_id},
+            headers=headers,
+        )
+        assert assigned.json() == {"added": True}
+        duplicate_assignment = client.post(
+            f"/api/libraries/{second_library}/papers",
+            json={"paper_id": paper_id},
+            headers=headers,
+        )
+        assert duplicate_assignment.json() == {"added": False}
+        assert [item["id"] for item in client.get(
+            "/api/library/papers", params={"library_id": second_library}
+        ).json()] == [paper_id]
         state = client.put(
             f"/api/papers/{paper_id}/state",
             json={"liked": True, "saved": True, "reading_status": "read"},
@@ -44,6 +62,143 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
             headers=headers,
         )
         assert note.json()["version"] == 1
+        appended = client.post(
+            "/api/notes/append",
+            json={"paper_id": paper_id, "body": "PDF translated excerpt", "library_id": library_id},
+            headers=headers,
+        )
+        assert appended.json()["version"] == 2
+        workspace = client.get(f"/api/libraries/{library_id}/workspace")
+        assert workspace.status_code == 200
+        assert workspace.json()["cards"] == []
+        all_workspace = client.get("/api/library/workspace")
+        assert all_workspace.status_code == 200
+        assert all_workspace.json()["library_id"] is None
+        all_saved = client.put(
+            "/api/library/workspace",
+            json={
+                "body": "all-papers synthesis",
+                "note_x": 25,
+                "note_y": 35,
+                "note_width": 560,
+                "note_height": 300,
+            },
+            headers=headers,
+        )
+        assert all_saved.json()["version"] == 2
+        all_card = client.post(
+            "/api/library/workspace/cards",
+            json={"paper_id": paper_id},
+            headers=headers,
+        )
+        assert all_card.status_code == 200
+        text_element = client.post(
+            "/api/library/workspace/elements",
+            json={
+                "element_type": "text",
+                "x": 180,
+                "y": 440,
+                "width": 280,
+                "height": 140,
+                "content": "canvas conclusion",
+                "text_color": "#315F59",
+            },
+            headers=headers,
+        )
+        assert text_element.status_code == 200
+        element_id = text_element.json()["id"]
+        moved_element = client.put(
+            f"/api/library-workspace/elements/{element_id}",
+            json={
+                "element_type": "text",
+                "x": 260,
+                "y": 520,
+                "width": 300,
+                "height": 160,
+                "rotation": 30,
+                "content": "updated canvas conclusion",
+                "text_color": "#224466",
+                "fill_color": "#FFF4CC",
+                "border_color": "#224466",
+                "border_width": 4,
+                "font_size": 26,
+                "font_family": "Arial",
+                "text_align": "center",
+                "z_index": 9,
+                "group_id": "api-group",
+            },
+            headers=headers,
+        )
+        assert moved_element.json() == {"updated": True}
+        saved_workspace = client.put(
+            f"/api/libraries/{library_id}/workspace",
+            json={
+                "body": "global synthesis",
+                "note_x": 30,
+                "note_y": 40,
+                "note_width": 540,
+                "note_height": 280,
+            },
+            headers=headers,
+        )
+        assert saved_workspace.json()["version"] == 2
+        card = client.post(
+            f"/api/libraries/{library_id}/workspace/cards",
+            json={"paper_id": paper_id},
+            headers=headers,
+        )
+        assert card.status_code == 200
+        card_id = card.json()["id"]
+        moved = client.put(
+            f"/api/library-workspace/cards/{card_id}",
+            json={"x": 700, "y": 80, "width": 340, "height": 360},
+            headers=headers,
+        )
+        assert moved.json() == {"updated": True}
+        refreshed_workspace = client.get(f"/api/libraries/{library_id}/workspace").json()
+        assert refreshed_workspace["body"] == "global synthesis"
+        assert refreshed_workspace["cards"][0]["x"] == 700.0
+        assert "PDF translated excerpt" in refreshed_workspace["cards"][0]["notes"][0]["body"]
+        refreshed_all = client.get("/api/library/workspace").json()
+        assert refreshed_all["body"] == "all-papers synthesis"
+        assert refreshed_all["cards"][0]["paper_id"] == paper_id
+        assert refreshed_all["elements"][0]["content"] == "updated canvas conclusion"
+        assert refreshed_all["elements"][0]["rotation"] == 30.0
+        assert refreshed_all["elements"][0]["group_id"] == "api-group"
+        deleted_element = client.delete(
+            f"/api/library-workspace/elements/{element_id}", headers=headers
+        )
+        assert deleted_element.json() == {"deleted": True}
+        assert client.get("/api/library/workspace").json()["elements"] == []
+        restored_element = client.put(
+            f"/api/library-workspace/elements/{element_id}",
+            json={
+                "element_type": "rectangle",
+                "x": 280,
+                "y": 540,
+                "width": 320,
+                "height": 180,
+                "content": "restored shape",
+            },
+            headers=headers,
+        )
+        assert restored_element.json() == {"updated": True}
+        assert client.get("/api/library/workspace").json()["elements"][0][
+            "element_type"
+        ] == "rectangle"
+        invalid_image = client.post(
+            "/api/library/workspace/elements",
+            json={
+                "element_type": "image",
+                "x": 20,
+                "y": 20,
+                "width": 320,
+                "height": 220,
+                "content": "data:text/html;base64,PGgxPmJhZDwvaDE+",
+            },
+            headers=headers,
+        )
+        assert invalid_image.status_code == 409
         tag = client.post(
             "/api/tags",
             json={"name": "kinetics", "paper_ids": [paper_id], "library_id": library_id},
@@ -62,10 +217,15 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
         assert "papers.ris" in export.headers["content-disposition"]
         deleted = client.delete(f"/api/libraries/{library_id}", headers=headers)
         assert deleted.status_code == 200
-        assert client.get("/api/libraries").json() == []
+        assert [item["id"] for item in client.get("/api/libraries").json()] == [
+            second_library
+        ]
         restored = client.post(f"/api/libraries/{library_id}/restore", headers=headers)
         assert restored.status_code == 200
-        assert client.get("/api/libraries").json()[0]["name"] == "API Project"
+        assert {item["name"] for item in client.get("/api/libraries").json()} == {
+            "API Project",
+            "PDF Collection",
+        }
         assert (
             require_row(
                 database.require_core()
@@ -73,7 +233,7 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
                 .fetchone(),
                 "note version count",
             )[0]
-            == 1
+            == 2
         )
     finally:
         database.close()

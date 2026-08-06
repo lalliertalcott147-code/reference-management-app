@@ -12,7 +12,7 @@ if ($DeleteUserData -and -not $ConfirmDeleteUserData) {
     throw 'Permanent data deletion requires both -DeleteUserData and -ConfirmDeleteUserData.'
 }
 if (Get-Process -Name 'CatalystLiterature' -ErrorAction SilentlyContinue) {
-    throw 'Close Catalyst Literature before uninstalling.'
+    throw 'Close Reference Manager before uninstalling.'
 }
 
 $target = [IO.Path]::GetFullPath($InstallDirectory)
@@ -20,12 +20,16 @@ $root = [IO.Path]::GetPathRoot($target)
 if ($target -eq $root -or $target.Length -lt ($root.Length + 8)) {
     throw 'Refusing to delete an unsafe installation directory.'
 }
-$shortcutName = -join ([char[]](0x50AC, 0x5316, 0x6587, 0x732E))
+$shortcutName = -join ([char[]](0x6587, 0x732E, 0x7BA1, 0x7406, 0x5668))
+$legacyShortcutName = -join ([char[]](0x50AC, 0x5316, 0x6587, 0x732E))
 $desktopShortcut = Join-Path $ShortcutDirectory ($shortcutName + '.lnk')
 Remove-Item -LiteralPath $desktopShortcut -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $ShortcutDirectory ($legacyShortcutName + '.lnk')) -Force -ErrorAction SilentlyContinue
 if (-not $SkipStartMenu) {
-    $startShortcut = Join-Path (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs') ($shortcutName + '.lnk')
+    $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+    $startShortcut = Join-Path $startMenu ($shortcutName + '.lnk')
     Remove-Item -LiteralPath $startShortcut -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $startMenu ($legacyShortcutName + '.lnk')) -Force -ErrorAction SilentlyContinue
 }
 
 if (-not $SkipRegistry) {

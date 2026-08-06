@@ -39,8 +39,10 @@ export function SettingsPage({ settings, onChange }: Props) {
   const [topicName, setTopicName] = useState("");
   const [topicQuery, setTopicQuery] = useState("");
   const [interestTerm, setInterestTerm] = useState("");
+  const [interestMapped, setInterestMapped] = useState("");
   const [interestType, setInterestType] = useState<InterestTerm["term_type"]>("positive");
   const [dailyLimit, setDailyLimit] = useState(settings.automatic_search_daily_limit);
+  const [displayName, setDisplayName] = useState(settings.display_name);
 
   useEffect(() => {
     void Promise.all([
@@ -64,6 +66,7 @@ export function SettingsPage({ settings, onChange }: Props) {
         crossref_email: email,
         personalization_enabled: settings.personalization_enabled,
         automatic_search_daily_limit: dailyLimit,
+        display_name: displayName,
       });
       onChange(updated);
       setWosKey(""); setOpenAlexKey("");
@@ -86,10 +89,11 @@ export function SettingsPage({ settings, onChange }: Props) {
 
   async function addPreferenceTerm(event: FormEvent) {
     event.preventDefault();
-    await addInterestTerm(interestTerm, interestType);
+    await addInterestTerm(interestTerm, interestType, interestMapped);
     setInterestTerms(await fetchInterestTerms());
     setInterestTerm("");
-    setMessage("关键词偏好已保存到本机。");
+    setInterestMapped("");
+    setMessage("中英文关键词偏好已保存到本机，将同时参与识别。");
   }
 
   async function addTerm(event: FormEvent) {
@@ -106,6 +110,9 @@ export function SettingsPage({ settings, onChange }: Props) {
 
   return <div className="page settings-page"><header className="page-header"><div><p className="eyebrow">本机设置</p><h1>设置</h1></div></header>
     <form className="settings-form" onSubmit={(event) => void submit(event)}>
+      <section className="settings-card"><h2>个人资料</h2><p>名称和头像只保存在当前电脑。</p>
+        <label>显示名称<span>显示在左上角头像旁边</span><input aria-label="显示名称" maxLength={80} required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="例如 Zyyyy" /></label>
+      </section>
       <section className="settings-card"><h2>免费检索服务</h2><p>密钥通过 Windows DPAPI 加密，浏览器只看到掩码。</p>
         <label>Web of Science Starter API Key<span>{settings.wos_api_key ? `已保存 ${settings.wos_api_key}` : "未配置"}</span><input type="password" autoComplete="off" value={wosKey} onChange={(event) => setWosKey(event.target.value)} placeholder="输入新的 Key（留空则不改）" /></label>
         <label>OpenAlex 免费 API Key<span>{settings.openalex_api_key ? `已保存 ${settings.openalex_api_key}` : "未配置"}</span><input type="password" autoComplete="off" value={openAlexKey} onChange={(event) => setOpenAlexKey(event.target.value)} placeholder="输入新的免费 Key（留空则不改）" /></label>
@@ -120,8 +127,8 @@ export function SettingsPage({ settings, onChange }: Props) {
       <section className="settings-card"><h2>研究主题与关键词</h2><p>这些规则只在本机与文献元数据匹配，不会上传笔记或 PDF 正文。</p>
         <div className="preference-list">{topics.map((item) => <div key={item.id}><span><strong>{item.name}</strong><small>{item.query_text}</small></span><label><input type="checkbox" checked={item.enabled} onChange={(event) => void saveResearchTopic({ name: item.name, query_text: item.query_text, enabled: event.target.checked }, item.id).then(fetchResearchTopics).then(setTopics)} /> 启用</label><button type="button" onClick={() => void deleteResearchTopic(item.id).then(fetchResearchTopics).then(setTopics)}>删除</button></div>)}</div>
         <div className="glossary-editor"><input aria-label="研究主题名称" value={topicName} onChange={(event) => setTopicName(event.target.value)} placeholder="例如 光催化" /><input aria-label="研究主题检索词" value={topicQuery} onChange={(event) => setTopicQuery(event.target.value)} placeholder="photocatalysis CO2" /><button className="secondary-button" type="button" disabled={!topicName.trim() || !topicQuery.trim()} onClick={(event) => void addTopic(event)}>添加主题</button></div>
-        <div className="preference-list">{interestTerms.map((item) => <div key={item.id}><span><strong>{item.term}</strong><small>{item.term_type === "positive" ? "优先推荐" : "降低推荐"}</small></span><button type="button" onClick={() => void deleteInterestTerm(item.id).then(fetchInterestTerms).then(setInterestTerms)}>删除</button></div>)}</div>
-        <div className="glossary-editor"><select value={interestType} onChange={(event) => setInterestType(event.target.value as InterestTerm["term_type"])}><option value="positive">关注关键词</option><option value="negative">排除关键词</option></select><input aria-label="推荐关键词" value={interestTerm} onChange={(event) => setInterestTerm(event.target.value)} placeholder="关键词" /><button className="secondary-button" type="button" disabled={!interestTerm.trim()} onClick={(event) => void addPreferenceTerm(event)}>添加关键词</button></div>
+        <div className="preference-list">{interestTerms.map((item) => <div key={item.id}><span><strong>{item.term}{item.mapped_term ? ` / ${item.mapped_term}` : ""}</strong><small>{item.term_type === "positive" ? "优先推荐 · 中英同时识别" : "降低推荐 · 中英同时识别"}</small></span><button type="button" onClick={() => void deleteInterestTerm(item.id).then(fetchInterestTerms).then(setInterestTerms)}>删除</button></div>)}</div>
+        <div className="glossary-editor"><select value={interestType} onChange={(event) => setInterestType(event.target.value as InterestTerm["term_type"])}><option value="positive">关注关键词</option><option value="negative">排除关键词</option></select><input aria-label="中文关键词" value={interestTerm} onChange={(event) => setInterestTerm(event.target.value)} placeholder="中文或第一语言关键词" /><input aria-label="英文关键词" value={interestMapped} onChange={(event) => setInterestMapped(event.target.value)} placeholder="对应英文关键词（可选）" /><button className="secondary-button" type="button" disabled={!interestTerm.trim()} onClick={(event) => void addPreferenceTerm(event)}>添加关键词</button></div>
       </section>
       <section className="settings-card"><h2>免费额度保护</h2><label>每天最多自动检查次数<span>每次检查可能调用多个已配置的免费来源；达到上限后等到第二天。</span><input type="number" min="1" max="50" value={dailyLimit} onChange={(event) => setDailyLimit(Number(event.target.value))} /></label></section>
       <div className="save-row"><button className="primary-button" type="submit" disabled={saving}>{saving ? "保存中…" : "保存设置"}</button><span role="status">{message}</span></div>

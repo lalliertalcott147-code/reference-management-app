@@ -19,6 +19,8 @@ export interface SettingsResponse {
   personalization_enabled: boolean;
   automatic_search_daily_limit: number;
   onboarding_complete: boolean;
+  avatar_url: string | null;
+  display_name: string;
   storage: string;
   cache_limit_mb: number;
 }
@@ -33,6 +35,7 @@ export interface ResearchTopic {
 export interface InterestTerm {
   id: number;
   term: string;
+  mapped_term: string | null;
   term_type: "positive" | "negative";
 }
 
@@ -54,6 +57,18 @@ export interface JournalSubscription {
   last_success_at: string | null;
   last_error: string | null;
   last_match_count: number;
+}
+
+export interface JournalPaper {
+  id: number;
+  title: string;
+  journal: string | null;
+  year: number | null;
+  doi: string | null;
+  abstract: string;
+  url: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
 }
 
 export interface SavedSearch {
@@ -131,6 +146,7 @@ export interface SourceStatus {
 export interface SearchResponse {
   papers: MergedPaper[];
   statuses: SourceStatus[];
+  recognized_queries?: string[];
 }
 
 export interface ImportIssue {
@@ -181,6 +197,54 @@ export interface LibraryPaper {
   note: string;
 }
 
+export interface WorkspaceCard {
+  id: number;
+  paper_id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  title: string;
+  title_translation: string | null;
+  abstract: string;
+  abstract_translation: string | null;
+  file_id: number | null;
+  notes: { id: number; body: string; updated_at: string }[];
+}
+
+export interface WorkspaceElement {
+  id: number;
+  element_type: "text" | "rectangle" | "ellipse" | "line" | "arrow" | "image";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  content: string;
+  text_color: string;
+  fill_color: string;
+  border_color: string;
+  border_width: number;
+  font_size: number;
+  font_family: string;
+  text_align: "left" | "center" | "right";
+  z_index: number;
+  group_id: string | null;
+}
+
+export interface LibraryWorkspace {
+  library_id: number | null;
+  body: string;
+  note_x: number;
+  note_y: number;
+  note_width: number;
+  note_height: number;
+  version: number;
+  updated_at: string;
+  cards: WorkspaceCard[];
+  elements: WorkspaceElement[];
+}
+
 export interface ModelStatus {
   state: "missing" | "invalid" | "ready";
   repository: string;
@@ -199,7 +263,7 @@ export interface JobStatus {
   progress_total: number | null;
   result: null | {
     paper_id?: number;
-    field_name?: "title" | "abstract";
+    field_name?: "title" | "abstract" | "selection";
     source_text?: string;
     translated_text?: string;
     saved?: boolean;
@@ -309,6 +373,10 @@ export function updateSettings(body: Record<string, unknown>): Promise<SettingsR
   return request("/api/settings", jsonInit("PUT", body));
 }
 
+export function uploadProfileAvatar(file: File): Promise<{ avatar_url: string }> {
+  return upload("/api/profile/avatar", file);
+}
+
 export function fetchResearchTopics(): Promise<ResearchTopic[]> {
   return request("/api/preferences/topics");
 }
@@ -334,9 +402,11 @@ export function fetchInterestTerms(): Promise<InterestTerm[]> {
 export function addInterestTerm(
   term: string,
   termType: InterestTerm["term_type"],
+  mappedTerm?: string,
 ): Promise<{ id: number }> {
   return request("/api/preferences/interest-terms", jsonInit("POST", {
     term,
+    mapped_term: mappedTerm?.trim() || null,
     term_type: termType,
   }));
 }
@@ -374,6 +444,10 @@ export function setJournalEnabled(id: number, enabled: boolean): Promise<{ updat
 
 export function runJournal(id: number): Promise<{ new_count: number }> {
   return request(`/api/journals/subscriptions/${id}/run`, { method: "POST" });
+}
+
+export function fetchJournalPapers(id: number): Promise<JournalPaper[]> {
+  return request(`/api/journals/subscriptions/${id}/papers`);
 }
 
 export function fetchSavedSearches(): Promise<SavedSearch[]> {
@@ -445,6 +519,10 @@ export function restoreLibrary(id: number): Promise<{ restored: boolean }> {
   return request(`/api/libraries/${id}/restore`, { method: "POST" });
 }
 
+export function addPaperToLibrary(libraryId: number, paperId: number): Promise<{ added: boolean }> {
+  return request(`/api/libraries/${libraryId}/papers`, jsonInit("POST", { paper_id: paperId }));
+}
+
 export function fetchLibraryPapers(libraryId?: number, query = ""): Promise<LibraryPaper[]> {
   const parameters = new URLSearchParams();
   if (libraryId !== undefined) parameters.set("library_id", String(libraryId));
@@ -483,6 +561,80 @@ export function saveNote(
   }));
 }
 
+export function appendNote(
+  paperId: number,
+  body: string,
+  libraryId?: number,
+): Promise<{ note_id: number; version: number }> {
+  return request("/api/notes/append", jsonInit("POST", {
+    paper_id: paperId,
+    body,
+    library_id: libraryId,
+  }));
+}
+
+export function fetchLibraryWorkspace(libraryId?: number): Promise<LibraryWorkspace> {
+  return request(libraryId === undefined
+    ? "/api/library/workspace"
+    : `/api/libraries/${libraryId}/workspace`);
+}
+
+export function saveLibraryWorkspace(
+  libraryId: number | undefined,
+  workspace: Pick<LibraryWorkspace, "body" | "note_x" | "note_y" | "note_width" | "note_height">,
+): Promise<{ version: number }> {
+  const path = libraryId === undefined
+    ? "/api/library/workspace"
+    : `/api/libraries/${libraryId}/workspace`;
+  return request(path, jsonInit("PUT", workspace));
+}
+
+export function addWorkspaceCard(
+  libraryId: number | undefined,
+  paperId: number,
+): Promise<{ id: number }> {
+  const path = libraryId === undefined
+    ? "/api/library/workspace/cards"
+    : `/api/libraries/${libraryId}/workspace/cards`;
+  return request(path, jsonInit("POST", {
+    paper_id: paperId,
+  }));
+}
+
+export function updateWorkspaceCard(
+  cardId: number,
+  layout: Pick<WorkspaceCard, "x" | "y" | "width" | "height">,
+): Promise<{ updated: boolean }> {
+  return request(`/api/library-workspace/cards/${cardId}`, jsonInit("PUT", layout));
+}
+
+export function deleteWorkspaceCard(cardId: number): Promise<{ deleted: boolean }> {
+  return request(`/api/library-workspace/cards/${cardId}`, { method: "DELETE" });
+}
+
+export function addWorkspaceElement(
+  libraryId: number | undefined,
+  element: Omit<WorkspaceElement, "id">,
+): Promise<{ id: number }> {
+  const path = libraryId === undefined
+    ? "/api/library/workspace/elements"
+    : `/api/libraries/${libraryId}/workspace/elements`;
+  return request(path, jsonInit("POST", element));
+}
+
+export function updateWorkspaceElement(
+  element: WorkspaceElement,
+): Promise<{ updated: boolean }> {
+  return request(
+    `/api/library-workspace/elements/${element.id}`,
+    jsonInit("PUT", element),
+  );
+}
+
+export function deleteWorkspaceElement(elementId: number): Promise<{ deleted: boolean }> {
+  return request(`/api/library-workspace/elements/${elementId}`, { method: "DELETE" });
+}
+
 export async function exportPapers(paperIds: number[], format: "bibtex" | "ris" | "csv"): Promise<void> {
   const response = await fetch("/api/library/export", {
     credentials: "same-origin",
@@ -516,6 +668,18 @@ export function submitTranslation(
     paper_id: paperId,
     field_name: fieldName,
     save,
+    use_glossary: useGlossary,
+  }));
+}
+
+export function submitTextTranslation(
+  paperId: number,
+  text: string,
+  useGlossary = true,
+): Promise<{ job_id: number }> {
+  return request("/api/translation/text-jobs", jsonInit("POST", {
+    paper_id: paperId,
+    text,
     use_glossary: useGlossary,
   }));
 }

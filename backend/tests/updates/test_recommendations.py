@@ -47,9 +47,18 @@ def test_explicit_preferences_and_explainable_recommendations(tmp_path) -> None:
 
     preferences = PreferenceService(connection)
     topic_id = preferences.save_topic("光催化", "photocatalysis carbon dioxide")
-    preferences.add_interest_term("conversion", "positive")
+    preferences.add_interest_term("转化率", "positive", mapped_term="conversion")
     preferences.add_interest_term("nickel", "negative")
     assert preferences.list_topics()[0]["id"] == topic_id
+    paired = next(
+        item for item in preferences.list_interest_terms() if item["term"] == "转化率"
+    )
+    assert paired["mapped_term"] == "conversion"
+    assert preferences.bilingual_variants("转化率") == ("转化率", "conversion")
+    assert preferences.bilingual_variants("光催化 / photocatalysis") == (
+        "光催化",
+        "photocatalysis",
+    )
 
     subscription_service = UpdateService(connection, object())  # type: ignore[arg-type]
     subscription_service.follow_journal("Catalysis Today")
@@ -57,6 +66,7 @@ def test_explicit_preferences_and_explainable_recommendations(tmp_path) -> None:
     candidate = next(item for item in result if item.paper_id == candidate_id)
     assert candidate.score >= 10
     assert any("研究主题" in reason for reason in candidate.reasons)
+    assert any("转化率 / conversion" in reason for reason in candidate.reasons)
     assert any("关注期刊" in reason for reason in candidate.reasons)
     assert any("Ada Chen" in reason for reason in candidate.reasons)
 

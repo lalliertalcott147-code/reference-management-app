@@ -83,5 +83,26 @@ def test_translation_api_jobs_glossary_and_saved_detail(tmp_path: Path) -> None:
             assert detail["title"] == "Catalyst design"
             assert detail["title_zh"] == "中文:Catalyst design"
             assert detail["translations"][0]["translated_text"] == "中文:Catalyst design"
+
+            selected = client.post(
+                "/api/translation/text-jobs",
+                json={"paper_id": paper_id, "text": "selected PDF text"},
+                headers=headers,
+            )
+            assert selected.status_code == 200
+            selected_job_id = selected.json()["job_id"]
+            selected_payload: dict[str, object] = {}
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                selected_payload = client.get(f"/api/jobs/{selected_job_id}").json()
+                if selected_payload.get("status") in {"completed", "failed"}:
+                    break
+                time.sleep(0.01)
+            assert selected_payload["status"] == "completed"
+            selected_result = selected_payload["result"]
+            assert isinstance(selected_result, dict)
+            assert selected_result["field_name"] == "selection"
+            assert selected_result["translated_text"] == "中文:selected PDF text"
+            assert selected_result["saved"] is False
     finally:
         database.close()

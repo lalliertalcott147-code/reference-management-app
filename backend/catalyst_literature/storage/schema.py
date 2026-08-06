@@ -422,6 +422,166 @@ CORE_MIGRATIONS = (
             ON journal_subscriptions(enabled, next_run_at);
         """,
     ),
+    Migration(
+        7,
+        "library_workspace",
+        """
+        CREATE TABLE library_workspaces (
+            library_id INTEGER PRIMARY KEY REFERENCES libraries(id) ON DELETE CASCADE,
+            body TEXT NOT NULL DEFAULT '',
+            note_x REAL NOT NULL DEFAULT 24,
+            note_y REAL NOT NULL DEFAULT 24,
+            note_width REAL NOT NULL DEFAULT 520 CHECK(note_width >= 280),
+            note_height REAL NOT NULL DEFAULT 260 CHECK(note_height >= 180),
+            version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE library_workspace_cards (
+            id INTEGER PRIMARY KEY,
+            library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+            paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            width REAL NOT NULL DEFAULT 340 CHECK(width >= 280),
+            height REAL NOT NULL DEFAULT 360 CHECK(height >= 220),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(library_id, paper_id)
+        );
+        CREATE INDEX library_workspace_cards_library_idx
+            ON library_workspace_cards(library_id, id);
+        """,
+    ),
+    Migration(
+        8,
+        "all_papers_workspace",
+        """
+        CREATE TABLE library_workspaces_v2 (
+            id INTEGER PRIMARY KEY,
+            scope_type TEXT NOT NULL CHECK(scope_type IN ('all', 'library')),
+            library_id INTEGER REFERENCES libraries(id) ON DELETE CASCADE,
+            body TEXT NOT NULL DEFAULT '',
+            note_x REAL NOT NULL DEFAULT 24,
+            note_y REAL NOT NULL DEFAULT 24,
+            note_width REAL NOT NULL DEFAULT 520 CHECK(note_width >= 280),
+            note_height REAL NOT NULL DEFAULT 260 CHECK(note_height >= 180),
+            version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            CHECK(
+                (scope_type='all' AND library_id IS NULL) OR
+                (scope_type='library' AND library_id IS NOT NULL)
+            )
+        );
+        INSERT INTO library_workspaces_v2(
+            id, scope_type, library_id, body, note_x, note_y,
+            note_width, note_height, version, created_at, updated_at
+        )
+        SELECT library_id, 'library', library_id, body, note_x, note_y,
+               note_width, note_height, version, created_at, updated_at
+        FROM library_workspaces;
+
+        CREATE TABLE library_workspace_cards_v2 (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL
+                REFERENCES library_workspaces_v2(id) ON DELETE CASCADE,
+            paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            width REAL NOT NULL DEFAULT 340 CHECK(width >= 280),
+            height REAL NOT NULL DEFAULT 360 CHECK(height >= 220),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(workspace_id, paper_id)
+        );
+        INSERT INTO library_workspace_cards_v2(
+            id, workspace_id, paper_id, x, y, width, height, created_at, updated_at
+        )
+        SELECT id, library_id, paper_id, x, y, width, height, created_at, updated_at
+        FROM library_workspace_cards;
+
+        DROP TABLE library_workspace_cards;
+        DROP TABLE library_workspaces;
+        ALTER TABLE library_workspaces_v2 RENAME TO library_workspaces;
+        ALTER TABLE library_workspace_cards_v2 RENAME TO library_workspace_cards;
+        CREATE UNIQUE INDEX library_workspaces_all_idx
+            ON library_workspaces(scope_type) WHERE scope_type='all';
+        CREATE UNIQUE INDEX library_workspaces_library_idx
+            ON library_workspaces(library_id) WHERE library_id IS NOT NULL;
+        CREATE INDEX library_workspace_cards_workspace_idx
+            ON library_workspace_cards(workspace_id, id);
+        """,
+    ),
+    Migration(
+        9,
+        "workspace_canvas_elements",
+        """
+        CREATE TABLE library_workspace_elements (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL
+                REFERENCES library_workspaces(id) ON DELETE CASCADE,
+            element_type TEXT NOT NULL CHECK(element_type IN ('text', 'line')),
+            x REAL NOT NULL CHECK(x >= 0),
+            y REAL NOT NULL CHECK(y >= 0),
+            width REAL NOT NULL CHECK(width >= 40),
+            height REAL NOT NULL CHECK(height >= 4),
+            content TEXT NOT NULL DEFAULT '',
+            color TEXT NOT NULL DEFAULT '#315f59',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX library_workspace_elements_workspace_idx
+            ON library_workspace_elements(workspace_id, id);
+        """,
+    ),
+    Migration(
+        10,
+        "ppt_workspace_elements",
+        """
+        CREATE TABLE library_workspace_elements_v2 (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL
+                REFERENCES library_workspaces(id) ON DELETE CASCADE,
+            element_type TEXT NOT NULL CHECK(element_type IN (
+                'text', 'rectangle', 'ellipse', 'line', 'arrow', 'image'
+            )),
+            x REAL NOT NULL CHECK(x >= 0),
+            y REAL NOT NULL CHECK(y >= 0),
+            width REAL NOT NULL CHECK(width >= 20),
+            height REAL NOT NULL CHECK(height >= 4),
+            rotation REAL NOT NULL DEFAULT 0,
+            content TEXT NOT NULL DEFAULT '',
+            text_color TEXT NOT NULL DEFAULT '#1F3633',
+            fill_color TEXT NOT NULL DEFAULT '#FFFFFF',
+            border_color TEXT NOT NULL DEFAULT '#315F59',
+            border_width REAL NOT NULL DEFAULT 2 CHECK(border_width >= 0),
+            font_size REAL NOT NULL DEFAULT 18 CHECK(font_size >= 8),
+            font_family TEXT NOT NULL DEFAULT 'Microsoft YaHei',
+            text_align TEXT NOT NULL DEFAULT 'left'
+                CHECK(text_align IN ('left', 'center', 'right')),
+            z_index INTEGER NOT NULL DEFAULT 1,
+            group_id TEXT,
+            deleted_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        INSERT INTO library_workspace_elements_v2(
+            id, workspace_id, element_type, x, y, width, height,
+            content, text_color, fill_color, border_color,
+            created_at, updated_at
+        )
+        SELECT id, workspace_id, element_type, x, y, width, height,
+               content, color,
+               CASE WHEN element_type='text' THEN '#FFFEF7' ELSE 'transparent' END,
+               color, created_at, updated_at
+        FROM library_workspace_elements;
+        DROP TABLE library_workspace_elements;
+        ALTER TABLE library_workspace_elements_v2 RENAME TO library_workspace_elements;
+        CREATE INDEX library_workspace_elements_workspace_idx
+            ON library_workspace_elements(workspace_id, deleted_at, z_index, id);
+        """,
+    ),
 )
 
 

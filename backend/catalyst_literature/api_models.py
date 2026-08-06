@@ -12,6 +12,7 @@ class SettingsUpdate(BaseModel):
     personalization_enabled: bool | None = None
     automatic_search_daily_limit: int | None = Field(default=None, ge=1, le=50)
     onboarding_complete: bool | None = None
+    display_name: str | None = Field(default=None, min_length=1, max_length=80)
 
 
 class ResearchTopicRequest(BaseModel):
@@ -22,6 +23,7 @@ class ResearchTopicRequest(BaseModel):
 
 class InterestTermRequest(BaseModel):
     term: str = Field(min_length=1, max_length=160)
+    mapped_term: str | None = Field(default=None, max_length=160)
     term_type: Literal["positive", "negative"]
 
 
@@ -69,6 +71,10 @@ class LibraryCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
 
 
+class LibraryPaperAddRequest(BaseModel):
+    paper_id: int = Field(gt=0)
+
+
 class PaperStateRequest(BaseModel):
     liked: bool = False
     disliked: bool = False
@@ -89,6 +95,54 @@ class NoteSaveRequest(BaseModel):
     library_id: int | None = None
 
 
+class NoteAppendRequest(BaseModel):
+    paper_id: int = Field(gt=0)
+    body: str = Field(min_length=1, max_length=100_000)
+    library_id: int | None = Field(default=None, gt=0)
+
+
+class LibraryWorkspaceRequest(BaseModel):
+    body: str = Field(max_length=500_000)
+    note_x: float = Field(ge=0, le=50_000)
+    note_y: float = Field(ge=0, le=50_000)
+    note_width: float = Field(ge=280, le=2_000)
+    note_height: float = Field(ge=180, le=2_000)
+
+
+class LibraryWorkspaceCardCreate(BaseModel):
+    paper_id: int = Field(gt=0)
+
+
+class LibraryWorkspaceCardUpdate(BaseModel):
+    x: float = Field(ge=0, le=50_000)
+    y: float = Field(ge=0, le=50_000)
+    width: float = Field(ge=280, le=2_000)
+    height: float = Field(ge=220, le=2_000)
+
+
+class LibraryWorkspaceElementCreate(BaseModel):
+    element_type: Literal["text", "rectangle", "ellipse", "line", "arrow", "image"]
+    x: float = Field(ge=0, le=50_000)
+    y: float = Field(ge=0, le=50_000)
+    width: float = Field(ge=20, le=5_000)
+    height: float = Field(ge=4, le=2_000)
+    rotation: float = Field(default=0, ge=-360_000, le=360_000)
+    content: str = Field(default="", max_length=8_000_000)
+    text_color: str = Field(default="#1F3633", pattern=r"^#[0-9A-Fa-f]{6}$")
+    fill_color: str = Field(default="#FFFFFF", pattern=r"^(#[0-9A-Fa-f]{6}|transparent)$")
+    border_color: str = Field(default="#315F59", pattern=r"^#[0-9A-Fa-f]{6}$")
+    border_width: float = Field(default=2, ge=0, le=100)
+    font_size: float = Field(default=18, ge=8, le=400)
+    font_family: str = Field(default="Microsoft YaHei", min_length=1, max_length=120)
+    text_align: Literal["left", "center", "right"] = "left"
+    z_index: int = Field(default=1, ge=-100_000, le=100_000)
+    group_id: str | None = Field(default=None, max_length=80)
+
+
+class LibraryWorkspaceElementUpdate(LibraryWorkspaceElementCreate):
+    pass
+
+
 class ExportRequest(BaseModel):
     paper_ids: list[int] = Field(min_length=1)
     format: Literal["bibtex", "ris", "csv"]
@@ -102,6 +156,12 @@ class TranslationRequest(BaseModel):
     paper_id: int = Field(gt=0)
     field_name: Literal["title", "abstract"]
     save: bool = True
+    use_glossary: bool = True
+
+
+class TextTranslationRequest(BaseModel):
+    paper_id: int = Field(gt=0)
+    text: str = Field(min_length=1, max_length=20_000)
     use_glossary: bool = True
 
 

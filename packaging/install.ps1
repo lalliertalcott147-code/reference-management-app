@@ -17,7 +17,7 @@ if ($target -eq $root -or $target.Length -lt ($root.Length + 8)) {
     throw 'Refusing an unsafe installation directory.'
 }
 if (Get-Process -Name 'CatalystLiterature' -ErrorAction SilentlyContinue) {
-    throw 'Close Catalyst Literature before installing or upgrading.'
+    throw 'Close Reference Manager before installing or upgrading.'
 }
 
 if (Test-Path -LiteralPath $target) {
@@ -38,30 +38,34 @@ if (Test-Path -LiteralPath $licenseDirectory) {
 }
 
 New-Item -ItemType Directory -Path $ShortcutDirectory -Force | Out-Null
-$shortcutName = -join ([char[]](0x50AC, 0x5316, 0x6587, 0x732E))
+$shortcutName = -join ([char[]](0x6587, 0x732E, 0x7BA1, 0x7406, 0x5668))
+$legacyShortcutName = -join ([char[]](0x50AC, 0x5316, 0x6587, 0x732E))
+$legacyShortcutPath = Join-Path $ShortcutDirectory ($legacyShortcutName + '.lnk')
+Remove-Item -LiteralPath $legacyShortcutPath -Force -ErrorAction SilentlyContinue
 $shortcutPath = Join-Path $ShortcutDirectory ($shortcutName + '.lnk')
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = Join-Path $target 'CatalystLiterature.exe'
 $shortcut.WorkingDirectory = $target
-$shortcut.Description = 'Launch the local Catalyst Literature App'
+$shortcut.Description = 'Launch the local Reference Manager App'
 $shortcut.Save()
 
 if (-not $SkipStartMenu) {
     $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+    Remove-Item -LiteralPath (Join-Path $startMenu ($legacyShortcutName + '.lnk')) -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Path $startMenu -Force | Out-Null
     $startShortcut = Join-Path $startMenu ($shortcutName + '.lnk')
     $startLink = $shell.CreateShortcut($startShortcut)
     $startLink.TargetPath = Join-Path $target 'CatalystLiterature.exe'
     $startLink.WorkingDirectory = $target
-    $startLink.Description = 'Launch the local Catalyst Literature App'
+    $startLink.Description = 'Launch the local Reference Manager App'
     $startLink.Save()
 }
 
 if (-not $SkipRegistry) {
     $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\CatalystLiterature'
     New-Item -Path $uninstallKey -Force | Out-Null
-    New-ItemProperty -Path $uninstallKey -Name DisplayName -Value 'Catalyst Literature' -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallKey -Name DisplayName -Value $shortcutName -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name DisplayVersion -Value '0.1.0' -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name Publisher -Value 'Local User' -PropertyType String -Force | Out-Null
     $uninstallCommand = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $target 'uninstall.ps1') + '"'

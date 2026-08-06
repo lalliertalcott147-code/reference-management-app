@@ -125,22 +125,58 @@ class PreferenceService:
 
     def list_interest_terms(self) -> list[dict[str, object]]:
         return [
-            {"id": int(row[0]), "term": str(row[1]), "term_type": str(row[2])}
+            {
+                "id": int(row[0]),
+                "term": str(row[1]),
+                "mapped_term": None if row[2] is None else str(row[2]),
+                "term_type": str(row[3]),
+            }
             for row in self.connection.execute(
                 """
-                SELECT id, term, term_type FROM interest_terms
+                SELECT id, term, mapped_term, term_type FROM interest_terms
                 WHERE term_type IN ('positive', 'negative') ORDER BY term_type, term
                 """
             )
         ]
 
-    def add_interest_term(self, term: str, term_type: Literal["positive", "negative"]) -> int:
+    def add_interest_term(
+        self,
+        term: str,
+        term_type: Literal["positive", "negative"],
+        *,
+        mapped_term: str | None = None,
+    ) -> int:
         cleaned = _clean(term, max_length=160)
+        mapped = None if mapped_term is None else _clean(mapped_term, max_length=160)
+        if mapped is not None and mapped.casefold() == cleaned.casefold():
+            raise ValueError("中英文关键词不能相同")
         self.connection.execute(
-            "INSERT INTO interest_terms(term, term_type, created_at) VALUES(?, ?, ?)",
-            (cleaned, term_type, utc_now()),
+            """
+            INSERT INTO interest_terms(term, mapped_term, term_type, created_at)
+            VALUES(?, ?, ?, ?)
+            """,
+            (cleaned, mapped, term_type, utc_now()),
         )
         return int(self.connection.last_insert_rowid())
+
+    def bilingual_variants(self, text: str) -> tuple[str, ...]:
+        cleaned = " ".join(text.split())
+        pieces = [
+            piece.strip()
+            for piece in re.split(r"\s+/\s+|[|\uff5c]", cleaned)
+            if piece.strip()
+        ]
+        variants = pieces or [cleaned]
+        for term, mapped in self.connection.execute(
+            """
+            SELECT term, mapped_term FROM interest_terms
+            WHERE term_type IN ('positive', 'negative') AND mapped_term IS NOT NULL
+            """
+        ):
+            pair = (str(term), str(mapped))
+            if any(item.casefold() in {value.casefold() for value in pair} for item in variants):
+                variants.extend(pair)
+        return tuple(dict.fromkeys(variants))
 
     def delete_interest_term(self, term_id: int) -> None:
         self.connection.execute(
@@ -173,15 +209,15 @@ class RecommendationService:
             )
         ]
         positive = [
-            str(row[0]).casefold()
+            tuple(str(value).casefold() for value in row if value)
             for row in self.connection.execute(
-                "SELECT term FROM interest_terms WHERE term_type='positive'"
+                "SELECT term, mapped_term FROM interest_terms WHERE term_type='positive'"
             )
         ]
         negative = [
-            str(row[0]).casefold()
+            tuple(str(value).casefold() for value in row if value)
             for row in self.connection.execute(
-                "SELECT term FROM interest_terms WHERE term_type='negative'"
+                "SELECT term, mapped_term FROM interest_terms WHERE term_type='negative'"
             )
         ]
         followed = {
@@ -211,17 +247,19 @@ class RecommendationService:
         recommendations: list[Recommendation] = []
         for row in self.connection.execute(
             """
-            SELECT p.id, p.title_original, p.journal_title, p.publication_year,
+            SELECT p.id, p.title_original, p.title_zh, p.journal_title, p.publication_year,
                    coalesce((SELECT group_concat(content, ' ') FROM abstracts
+                             WHERE paper_id=p.id), ''),
+                   coalesce((SELECT group_concat(translated_text, ' ') FROM translations
                              WHERE paper_id=p.id), ''),
                    coalesce(s.disliked, 0)
             FROM papers p LEFT JOIN user_paper_state s ON s.paper_id=p.id
             ORDER BY p.updated_at DESC
             """
         ):
-            if bool(row[5]):
+            if bool(row[7]):
                 continue
-            searchable = f"{row[1]} {row[2] or ''} {row[4]}".casefold()
+            searchable = f"{row[1]} {row[2] or ''} {row[3] or ''} {row[5]} {row[6]}".casefold()
             reasons: list[str] = []
             score = 0
             for name, terms in topics:
@@ -229,12 +267,13 @@ class RecommendationService:
                 if hits:
                     score += 4 + min(len(hits) - 1, 2)
                     reasons.append(f"匹配研究主题“{name}”: {', '.join(hits[:3])}")
-            for term in positive:
-                if term in searchable:
+            for terms in positive:
+                matched_term = next((term for term in terms if term in searchable), None)
+                if matched_term:
                     score += 3
-                    reasons.append(f"匹配关注关键词“{term}”")
-            score -= 4 * sum(term in searchable for term in negative)
-            normalized_journal = normalize_title(str(row[2] or ""))
+                    reasons.append(f"匹配关注关键词“{' / '.join(terms)}”")
+            score -= 4 * sum(any(term in searchable for term in terms) for terms in negative)
+            normalized_journal = normalize_title(str(row[3] or ""))
             if normalized_journal in followed:
                 score += 3
                 reasons.append(f"来自已关注期刊“{followed[normalized_journal]}”")
@@ -256,13 +295,13 @@ class RecommendationService:
                 if matched:
                     score += 2
                     reasons.append(f"包含你曾保存或阅读的作者: {matched}")
-            if row[3] is not None and int(row[3]) >= current_year - 2:
+            if row[4] is not None and int(row[4]) >= current_year - 2:
                 score += 1
-                reasons.append(f"近年发表 ({row[3]})")
+                reasons.append(f"近年发表 ({row[4]})")
             if score > 0 and reasons:
                 recommendations.append(
                     Recommendation(
-                        int(row[0]), str(row[1]), row[2], row[3], score, tuple(reasons)
+                        int(row[0]), str(row[1]), row[3], row[4], score, tuple(reasons)
                     )
                 )
         recommendations.sort(key=lambda item: (-item.score, -(item.year or 0), item.paper_id))
@@ -381,6 +420,44 @@ class UpdateService:
                 FROM journal_subscriptions s JOIN journals j ON j.id=s.journal_id
                 ORDER BY j.title
                 """
+            )
+        ]
+
+    def list_journal_papers(
+        self, subscription_id: int, *, limit: int = 50
+    ) -> list[dict[str, object]]:
+        if self.connection.execute(
+            "SELECT 1 FROM journal_subscriptions WHERE id=?", (subscription_id,)
+        ).fetchone() is None:
+            raise ValueError("期刊关注不存在")
+        return [
+            {
+                "id": int(row[0]),
+                "title": str(row[1]),
+                "journal": None if row[2] is None else str(row[2]),
+                "year": None if row[3] is None else int(row[3]),
+                "doi": None if row[4] is None else str(row[4]),
+                "abstract": "" if row[5] is None else str(row[5]),
+                "url": None if row[6] is None else str(row[6]),
+                "first_seen_at": str(row[7]),
+                "last_seen_at": str(row[8]),
+            }
+            for row in self.connection.execute(
+                """
+                SELECT p.id, p.title_original, p.journal_title, p.publication_year,
+                    p.doi,
+                    (SELECT a.content FROM abstracts a WHERE a.paper_id=p.id
+                     ORDER BY a.is_preferred DESC, a.id LIMIT 1),
+                    (SELECT ps.source_url FROM paper_sources ps WHERE ps.paper_id=p.id
+                     AND ps.source_url IS NOT NULL ORDER BY ps.fetched_at DESC LIMIT 1),
+                    i.first_seen_at, i.last_seen_at
+                FROM journal_subscription_items i
+                JOIN papers p ON p.id=i.paper_id
+                WHERE i.subscription_id=?
+                ORDER BY coalesce(p.publication_year, 0) DESC, i.last_seen_at DESC, p.id DESC
+                LIMIT ?
+                """,
+                (subscription_id, limit),
             )
         ]
 

@@ -51,7 +51,16 @@ def test_fresh_database_has_required_pragmas_schema_and_fts(tmp_path: Path) -> N
             str(row[0])
             for row in core.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        assert {"papers", "translations", "files", "pdf_annotations", "jobs"} <= tables
+        assert {
+            "papers",
+            "translations",
+            "files",
+            "pdf_annotations",
+            "jobs",
+            "library_workspaces",
+            "library_workspace_cards",
+            "library_workspace_elements",
+        } <= tables
         core.execute(
             "INSERT INTO paper_fts(paper_id, title_original) VALUES(1, 'photocatalysis')"
         )
@@ -113,6 +122,95 @@ def test_forward_upgrade_creates_pre_migration_backup(tmp_path: Path) -> None:
             backup.close()
     finally:
         manager.close()
+
+
+def test_workspace_upgrade_preserves_existing_library_notes_and_cards(tmp_path: Path) -> None:
+    database_path = tmp_path / "workspace-v7.db"
+    connection = open_database(database_path)
+    apply_migrations(connection, CORE_MIGRATIONS[:7])
+    paper_id = PaperRepository(connection).create(PaperDraft("Existing workspace paper"))
+    connection.execute(
+        "INSERT INTO libraries(name, created_at, updated_at) VALUES('Existing', 't', 't')"
+    )
+    library_id = int(connection.last_insert_rowid())
+    connection.execute(
+        "INSERT INTO library_papers(library_id, paper_id, added_at) VALUES(?, ?, 't')",
+        (library_id, paper_id),
+    )
+    connection.execute(
+        """
+        INSERT INTO library_workspaces(library_id, body, created_at, updated_at)
+        VALUES(?, 'preserved synthesis', 't', 't')
+        """,
+        (library_id,),
+    )
+    connection.execute(
+        """
+        INSERT INTO library_workspace_cards(
+            library_id, paper_id, x, y, created_at, updated_at
+        ) VALUES(?, ?, 100, 120, 't', 't')
+        """,
+        (library_id, paper_id),
+    )
+    try:
+        apply_migrations(connection, CORE_MIGRATIONS)
+        workspace = require_row(
+            connection.execute(
+                """
+                SELECT id, scope_type, body FROM library_workspaces
+                WHERE library_id=?
+                """,
+                (library_id,),
+            ).fetchone(),
+            "reading migrated workspace",
+        )
+        assert workspace[1:] == ("library", "preserved synthesis")
+        assert require_row(
+            connection.execute(
+                "SELECT paper_id FROM library_workspace_cards WHERE workspace_id=?",
+                (workspace[0],),
+            ).fetchone(),
+            "reading migrated workspace card",
+        )[0] == paper_id
+    finally:
+        connection.close()
+
+
+def test_ppt_workspace_upgrade_preserves_legacy_canvas_elements(tmp_path: Path) -> None:
+    connection = open_database(tmp_path / "workspace-v9.db")
+    apply_migrations(connection, CORE_MIGRATIONS[:9])
+    connection.execute(
+        """
+        INSERT INTO library_workspaces(
+            scope_type, library_id, created_at, updated_at
+        ) VALUES('all', NULL, 't', 't')
+        """
+    )
+    workspace_id = int(connection.last_insert_rowid())
+    connection.execute(
+        """
+        INSERT INTO library_workspace_elements(
+            workspace_id, element_type, x, y, width, height,
+            content, color, created_at, updated_at
+        ) VALUES(?, 'text', 20, 30, 280, 140, 'legacy text', '#224466', 't', 't')
+        """,
+        (workspace_id,),
+    )
+    try:
+        apply_migrations(connection, CORE_MIGRATIONS)
+        element = require_row(
+            connection.execute(
+                """
+                SELECT element_type, content, text_color, border_color,
+                       rotation, z_index, deleted_at
+                FROM library_workspace_elements
+                """
+            ).fetchone(),
+            "reading migrated PPT element",
+        )
+        assert element == ("text", "legacy text", "#224466", "#224466", 0.0, 1, None)
+    finally:
+        connection.close()
 
 
 def test_failed_migration_rolls_back_without_advancing_version(tmp_path: Path) -> None:

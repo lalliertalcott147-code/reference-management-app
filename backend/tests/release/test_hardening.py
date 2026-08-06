@@ -61,7 +61,7 @@ def test_upgrade_from_previous_schema_preserves_data_and_creates_backup(tmp_path
         ).fetchone()[0] == "legacy"
         assert manager.require_core().execute(
             "SELECT max(version) FROM schema_migrations"
-        ).fetchone()[0] == 6
+        ).fetchone()[0] == CORE_MIGRATIONS[-1].version
         assert list(paths.backups.glob("pre-migration-v5-*.db"))
     finally:
         manager.close()

@@ -6,7 +6,7 @@
 - Python 3.12；
 - Node.js 24；
 - pnpm 11；
-- Microsoft Edge，用于 Playwright 浏览器 E2E；
+- Microsoft Edge WebView2 Runtime，用于桌面窗口；Microsoft Edge 用于 Playwright 浏览器 E2E；
 - 建议至少 8 GB 内存和 8 GB 可用磁盘，完整打包建议预留更多空间。
 
 依赖版本固定在 `requirements*.txt`、`frontend/package.json` 和 `frontend/pnpm-lock.yaml`。不要把 `.venv/`、`node_modules/`、模型或下载的原生二进制提交到 Git。
@@ -25,7 +25,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-and-run.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-and-run.ps1 -SkipInstall
 ```
 
-开发模式也只监听 `127.0.0.1`，并遵守浏览器标签页空闲退出规则。
+开发模式也只监听 `127.0.0.1`，启动独立 WebView2 窗口；关闭窗口后本地服务安全退出。
 
 ## 3. 常用命令
 
@@ -80,7 +80,9 @@ build/、dist/                 生成物；不提交
 | 变量 | 用途 |
 |---|---|
 | `CATALYST_DATA_DIR` | 覆盖本地数据根目录 |
-| `CATALYST_NO_BROWSER=1` | 测试时不自动打开浏览器 |
+| `CATALYST_NO_WINDOW=1` | 测试或后端调试时不创建桌面窗口 |
+| `CATALYST_NO_BROWSER=1` | `CATALYST_NO_WINDOW` 的兼容别名 |
+| `CATALYST_DESKTOP_DEBUG=1` | 启用 pywebview 调试模式 |
 | `CATALYST_*_SECONDS` | 生命周期专项测试的超时覆盖 |
 | `CATALYST_NODE_EXE` | `verify.ps1` 找不到 Node 时指定路径 |
 | `WOS_API_KEY` | 只供手动真实来源冒烟测试 |
