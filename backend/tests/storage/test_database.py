@@ -176,6 +176,43 @@ def test_workspace_upgrade_preserves_existing_library_notes_and_cards(tmp_path: 
         connection.close()
 
 
+def test_ppt_workspace_upgrade_preserves_legacy_canvas_elements(tmp_path: Path) -> None:
+    connection = open_database(tmp_path / "workspace-v9.db")
+    apply_migrations(connection, CORE_MIGRATIONS[:9])
+    connection.execute(
+        """
+        INSERT INTO library_workspaces(
+            scope_type, library_id, created_at, updated_at
+        ) VALUES('all', NULL, 't', 't')
+        """
+    )
+    workspace_id = int(connection.last_insert_rowid())
+    connection.execute(
+        """
+        INSERT INTO library_workspace_elements(
+            workspace_id, element_type, x, y, width, height,
+            content, color, created_at, updated_at
+        ) VALUES(?, 'text', 20, 30, 280, 140, 'legacy text', '#224466', 't', 't')
+        """,
+        (workspace_id,),
+    )
+    try:
+        apply_migrations(connection, CORE_MIGRATIONS)
+        element = require_row(
+            connection.execute(
+                """
+                SELECT element_type, content, text_color, border_color,
+                       rotation, z_index, deleted_at
+                FROM library_workspace_elements
+                """
+            ).fetchone(),
+            "reading migrated PPT element",
+        )
+        assert element == ("text", "legacy text", "#224466", "#224466", 0.0, 1, None)
+    finally:
+        connection.close()
+
+
 def test_failed_migration_rolls_back_without_advancing_version(tmp_path: Path) -> None:
     connection = open_database(tmp_path / "broken.db")
     bad = Migration(

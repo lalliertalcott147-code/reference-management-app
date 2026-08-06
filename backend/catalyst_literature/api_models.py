@@ -121,13 +121,22 @@ class LibraryWorkspaceCardUpdate(BaseModel):
 
 
 class LibraryWorkspaceElementCreate(BaseModel):
-    element_type: Literal["text", "line"]
+    element_type: Literal["text", "rectangle", "ellipse", "line", "arrow", "image"]
     x: float = Field(ge=0, le=50_000)
     y: float = Field(ge=0, le=50_000)
-    width: float = Field(ge=40, le=5_000)
+    width: float = Field(ge=20, le=5_000)
     height: float = Field(ge=4, le=2_000)
-    content: str = Field(default="", max_length=200_000)
-    color: str = Field(default="#315f59", pattern=r"^#[0-9A-Fa-f]{6}$")
+    rotation: float = Field(default=0, ge=-360_000, le=360_000)
+    content: str = Field(default="", max_length=8_000_000)
+    text_color: str = Field(default="#1F3633", pattern=r"^#[0-9A-Fa-f]{6}$")
+    fill_color: str = Field(default="#FFFFFF", pattern=r"^(#[0-9A-Fa-f]{6}|transparent)$")
+    border_color: str = Field(default="#315F59", pattern=r"^#[0-9A-Fa-f]{6}$")
+    border_width: float = Field(default=2, ge=0, le=100)
+    font_size: float = Field(default=18, ge=8, le=400)
+    font_family: str = Field(default="Microsoft YaHei", min_length=1, max_length=120)
+    text_align: Literal["left", "center", "right"] = "left"
+    z_index: int = Field(default=1, ge=-100_000, le=100_000)
+    group_id: str | None = Field(default=None, max_length=80)
 
 
 class LibraryWorkspaceElementUpdate(LibraryWorkspaceElementCreate):

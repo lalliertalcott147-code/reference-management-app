@@ -228,7 +228,9 @@ def test_global_note_workspace_cards_collect_article_context_and_persist_layout(
             width=280,
             height=150,
             content="movable conclusion",
-            color="#315f59",
+            text_color="#315F59",
+            font_size=22,
+            z_index=4,
         )
         line_id = service.create_workspace_element(
             library_id,
@@ -238,7 +240,7 @@ def test_global_note_workspace_cards_collect_article_context_and_persist_layout(
             width=240,
             height=20,
             content="",
-            color="#C86B45",
+            border_color="#C86B45",
         )
         service.update_workspace_element(
             text_id,
@@ -248,14 +250,49 @@ def test_global_note_workspace_cards_collect_article_context_and_persist_layout(
             width=300,
             height=160,
             content="updated movable conclusion",
-            color="#224466",
+            rotation=18,
+            text_color="#224466",
+            fill_color="#FFF4CC",
+            border_color="#224466",
+            border_width=3,
+            font_size=24,
+            font_family="Arial",
+            text_align="center",
+            z_index=8,
+            group_id="research-group",
         )
         all_element = service.get_workspace(None)["elements"][0]
         assert all_element["content"] == "updated movable conclusion"
         assert (all_element["x"], all_element["y"]) == (260.0, 540.0)
+        assert (all_element["rotation"], all_element["z_index"]) == (18.0, 8)
+        assert all_element["group_id"] == "research-group"
         assert service.get_workspace(library_id)["elements"][0]["id"] == line_id
         service.delete_workspace_element(line_id)
         assert service.get_workspace(library_id)["elements"] == []
+        service.update_workspace_element(
+            line_id,
+            element_type="arrow",
+            x=220,
+            y=560,
+            width=260,
+            height=24,
+            content="",
+            border_color="#C86B45",
+        )
+        assert service.get_workspace(library_id)["elements"][0]["element_type"] == "arrow"
+        image_id = service.create_workspace_element(
+            None,
+            element_type="image",
+            x=400,
+            y=700,
+            width=320,
+            height=220,
+            content="data:image/png;base64,aW1hZ2U=",
+        )
+        assert {item["id"] for item in service.get_workspace(None)["elements"]} == {
+            text_id,
+            image_id,
+        }
     finally:
         manager.close()
 

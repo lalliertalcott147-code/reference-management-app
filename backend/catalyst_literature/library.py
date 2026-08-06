@@ -500,18 +500,38 @@ class LibraryService:
         width: float,
         height: float,
         content: str,
-        color: str,
+        rotation: float = 0,
+        text_color: str = "#1F3633",
+        fill_color: str = "#FFFFFF",
+        border_color: str = "#315F59",
+        border_width: float = 2,
+        font_size: float = 18,
+        font_family: str = "Microsoft YaHei",
+        text_align: str = "left",
+        z_index: int = 1,
+        group_id: str | None = None,
     ) -> int:
-        if element_type not in {"text", "line"}:
+        if element_type not in {"text", "rectangle", "ellipse", "line", "arrow", "image"}:
             raise ValueError("Unsupported workspace element type")
+        if element_type == "image" and not content.startswith(
+            (
+                "data:image/png;base64,",
+                "data:image/jpeg;base64,",
+                "data:image/webp;base64,",
+                "data:image/gif;base64,",
+            )
+        ):
+            raise ValueError("Unsupported workspace image")
         workspace_id = self._get_or_create_workspace_id(library_id)
         now = utc_now()
         self.connection.execute(
             """
             INSERT INTO library_workspace_elements(
                 workspace_id, element_type, x, y, width, height,
-                content, color, created_at, updated_at
-            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                rotation, content, text_color, fill_color, border_color,
+                border_width, font_size, font_family, text_align, z_index,
+                group_id, created_at, updated_at
+            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 workspace_id,
@@ -520,8 +540,17 @@ class LibraryService:
                 y,
                 width,
                 height,
+                rotation,
                 content,
-                color,
+                text_color,
+                fill_color,
+                border_color,
+                border_width,
+                font_size,
+                font_family,
+                text_align,
+                z_index,
+                group_id,
                 now,
                 now,
             ),
@@ -538,24 +567,67 @@ class LibraryService:
         width: float,
         height: float,
         content: str,
-        color: str,
+        rotation: float = 0,
+        text_color: str = "#1F3633",
+        fill_color: str = "#FFFFFF",
+        border_color: str = "#315F59",
+        border_width: float = 2,
+        font_size: float = 18,
+        font_family: str = "Microsoft YaHei",
+        text_align: str = "left",
+        z_index: int = 1,
+        group_id: str | None = None,
     ) -> None:
-        if element_type not in {"text", "line"}:
+        if element_type not in {"text", "rectangle", "ellipse", "line", "arrow", "image"}:
             raise ValueError("Unsupported workspace element type")
+        if element_type == "image" and not content.startswith(
+            (
+                "data:image/png;base64,",
+                "data:image/jpeg;base64,",
+                "data:image/webp;base64,",
+                "data:image/gif;base64,",
+            )
+        ):
+            raise ValueError("Unsupported workspace image")
         self.connection.execute(
             """
             UPDATE library_workspace_elements SET
-                element_type=?, x=?, y=?, width=?, height=?, content=?,
-                color=?, updated_at=? WHERE id=?
+                element_type=?, x=?, y=?, width=?, height=?, rotation=?,
+                content=?, text_color=?, fill_color=?, border_color=?,
+                border_width=?, font_size=?, font_family=?, text_align=?,
+                z_index=?, group_id=?, deleted_at=NULL, updated_at=? WHERE id=?
             """,
-            (element_type, x, y, width, height, content, color, utc_now(), element_id),
+            (
+                element_type,
+                x,
+                y,
+                width,
+                height,
+                rotation,
+                content,
+                text_color,
+                fill_color,
+                border_color,
+                border_width,
+                font_size,
+                font_family,
+                text_align,
+                z_index,
+                group_id,
+                utc_now(),
+                element_id,
+            ),
         )
         if self.connection.changes() == 0:
             raise LookupError("Workspace element not found")
 
     def delete_workspace_element(self, element_id: int) -> None:
         self.connection.execute(
-            "DELETE FROM library_workspace_elements WHERE id=?", (element_id,)
+            """
+            UPDATE library_workspace_elements SET deleted_at=?, updated_at=?
+            WHERE id=? AND deleted_at IS NULL
+            """,
+            (utc_now(), utc_now(), element_id),
         )
         if self.connection.changes() == 0:
             raise LookupError("Workspace element not found")
@@ -662,14 +734,26 @@ class LibraryService:
                 "y": float(row[3]),
                 "width": float(row[4]),
                 "height": float(row[5]),
-                "content": str(row[6]),
-                "color": str(row[7]),
+                "rotation": float(row[6]),
+                "content": str(row[7]),
+                "text_color": str(row[8]),
+                "fill_color": str(row[9]),
+                "border_color": str(row[10]),
+                "border_width": float(row[11]),
+                "font_size": float(row[12]),
+                "font_family": str(row[13]),
+                "text_align": str(row[14]),
+                "z_index": int(row[15]),
+                "group_id": None if row[16] is None else str(row[16]),
             }
             for row in self.connection.execute(
                 """
-                SELECT id, element_type, x, y, width, height, content, color
+                SELECT id, element_type, x, y, width, height, rotation,
+                       content, text_color, fill_color, border_color,
+                       border_width, font_size, font_family, text_align,
+                       z_index, group_id
                 FROM library_workspace_elements
-                WHERE workspace_id=? ORDER BY id
+                WHERE workspace_id=? AND deleted_at IS NULL ORDER BY z_index, id
                 """,
                 (workspace_id,),
             )

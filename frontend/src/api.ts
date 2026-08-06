@@ -214,13 +214,22 @@ export interface WorkspaceCard {
 
 export interface WorkspaceElement {
   id: number;
-  element_type: "text" | "line";
+  element_type: "text" | "rectangle" | "ellipse" | "line" | "arrow" | "image";
   x: number;
   y: number;
   width: number;
   height: number;
+  rotation: number;
   content: string;
-  color: string;
+  text_color: string;
+  fill_color: string;
+  border_color: string;
+  border_width: number;
+  font_size: number;
+  font_family: string;
+  text_align: "left" | "center" | "right";
+  z_index: number;
+  group_id: string | null;
 }
 
 export interface LibraryWorkspace {

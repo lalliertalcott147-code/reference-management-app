@@ -214,6 +214,37 @@ h2 { color: #214b46; }
 .workspace-text-element input[type="color"] { width: 24px; height: 18px; padding: 0; border: 0; background: transparent; }
 .workspace-line-element { position: absolute; z-index: 2; padding: 0; border: 0; background: transparent; cursor: grab; touch-action: none; }
 .workspace-line-element svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+.ppt-workspace { grid-template-columns: 104px minmax(0, 1fr); }
+.ppt-workspace .workspace-toolbox { max-height: 76vh; overflow-y: auto; align-content: start; }
+.ppt-workspace .workspace-toolbox button { min-height: 45px; }
+.workspace-stage { min-width: 0; }
+.ppt-commandbar, .ppt-formatbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 42px; padding: 7px 9px; border: 1px solid #cbdad6; background: #f8fbfa; }
+.ppt-commandbar { border-radius: 11px 11px 0 0; }
+.ppt-formatbar { border-top: 0; background: #fff; }
+.ppt-commandbar button, .ppt-commandbar select, .ppt-formatbar select, .ppt-formatbar input { min-height: 28px; padding: 4px 7px; border: 1px solid var(--line); border-radius: 6px; background: white; color: #40534f; font-size: 10px; }
+.ppt-commandbar button:disabled { opacity: .42; }
+.ppt-formatbar label { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 9px; }
+.ppt-formatbar input[type="number"] { width: 58px; }
+.ppt-formatbar input[type="color"] { width: 32px; padding: 2px; }
+.zoom-control { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+.zoom-control output { min-width: 38px; color: var(--muted); font-size: 10px; text-align: center; }
+.workspace-scroll { height: min(72vh, 780px); overflow: auto; border: 1px solid #cbdad6; border-top: 0; border-radius: 0 0 14px 14px; background: #e9efed; }
+.ppt-workspace .workspace-canvas { position: relative; width: 1600px; min-width: 1600px; overflow: visible; border: 0; border-radius: 0; background-color: #f8faf9; box-shadow: inset 0 0 0 1px #d7e2df; transform-origin: left top; }
+.workspace-ppt-element { position: absolute; box-sizing: border-box; border-style: solid; box-shadow: 0 4px 12px rgb(22 62 57 / 8%); touch-action: none; user-select: none; }
+.workspace-ppt-element.selected { outline: 3px solid #2f9789; outline-offset: 3px; }
+.workspace-ppt-element.element-text, .workspace-ppt-element.element-rectangle, .workspace-ppt-element.element-ellipse { overflow: hidden; }
+.workspace-ppt-element.element-ellipse { border-radius: 50%; }
+.workspace-ppt-element.element-line, .workspace-ppt-element.element-arrow { border: 0 !important; background: transparent !important; box-shadow: none; }
+.workspace-ppt-element textarea { width: 100%; height: 100%; resize: none; padding: 10px; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; line-height: 1.45; user-select: text; }
+.workspace-ppt-element.element-ellipse textarea { padding: 20% 14%; }
+.workspace-ppt-element svg, .workspace-ppt-element img { display: block; width: 100%; height: 100%; }
+.workspace-ppt-element img { object-fit: contain; pointer-events: none; }
+.element-move-handle, .element-rotate-handle, .element-resize-handle, .legacy-resize-handle { position: absolute; z-index: 40; display: grid; place-items: center; padding: 0; border: 1px solid #237d72; background: white; color: #237d72; cursor: pointer; touch-action: none; }
+.element-move-handle { top: -28px; left: -2px; width: 23px; height: 21px; border-radius: 5px; cursor: move; }
+.element-rotate-handle { top: -31px; left: calc(50% - 11px); width: 23px; height: 23px; border-radius: 50%; cursor: grab; }
+.element-resize-handle, .legacy-resize-handle { right: -7px; bottom: -7px; width: 14px; height: 14px; border-radius: 3px; cursor: nwse-resize; }
+.workspace-note, .workspace-paper-card { box-sizing: border-box; }
 
 @media (max-width: 980px) {
   .shell { grid-template-columns: 82px minmax(0, 1fr); }

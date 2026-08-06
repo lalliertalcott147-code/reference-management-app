@@ -913,11 +913,22 @@ def create_app(
                 y=request.y,
                 width=request.width,
                 height=request.height,
+                rotation=request.rotation,
                 content=request.content,
-                color=request.color,
+                text_color=request.text_color,
+                fill_color=request.fill_color,
+                border_color=request.border_color,
+                border_width=request.border_width,
+                font_size=request.font_size,
+                font_family=request.font_family,
+                text_align=request.text_align,
+                z_index=request.z_index,
+                group_id=request.group_id,
             )
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+        except (ValueError, apsw.ConstraintError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
         return {"id": element_id}
 
     @app.post("/api/libraries/{library_id}/workspace/elements")
@@ -968,11 +979,22 @@ def create_app(
                 y=request.y,
                 width=request.width,
                 height=request.height,
+                rotation=request.rotation,
                 content=request.content,
-                color=request.color,
+                text_color=request.text_color,
+                fill_color=request.fill_color,
+                border_color=request.border_color,
+                border_width=request.border_width,
+                font_size=request.font_size,
+                font_family=request.font_family,
+                text_align=request.text_align,
+                z_index=request.z_index,
+                group_id=request.group_id,
             )
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+        except (ValueError, apsw.ConstraintError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
         return {"updated": True}
 
     @app.delete("/api/library-workspace/elements/{element_id}")

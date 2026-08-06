@@ -101,7 +101,7 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
                 "width": 280,
                 "height": 140,
                 "content": "canvas conclusion",
-                "color": "#315f59",
+                "text_color": "#315F59",
             },
             headers=headers,
         )
@@ -115,8 +115,17 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
                 "y": 520,
                 "width": 300,
                 "height": 160,
+                "rotation": 30,
                 "content": "updated canvas conclusion",
-                "color": "#224466",
+                "text_color": "#224466",
+                "fill_color": "#FFF4CC",
+                "border_color": "#224466",
+                "border_width": 4,
+                "font_size": 26,
+                "font_family": "Arial",
+                "text_align": "center",
+                "z_index": 9,
+                "group_id": "api-group",
             },
             headers=headers,
         )
@@ -154,11 +163,42 @@ def test_library_api_crud_notes_tags_search_export_and_trash(tmp_path: Path) -> 
         assert refreshed_all["body"] == "all-papers synthesis"
         assert refreshed_all["cards"][0]["paper_id"] == paper_id
         assert refreshed_all["elements"][0]["content"] == "updated canvas conclusion"
+        assert refreshed_all["elements"][0]["rotation"] == 30.0
+        assert refreshed_all["elements"][0]["group_id"] == "api-group"
         deleted_element = client.delete(
             f"/api/library-workspace/elements/{element_id}", headers=headers
         )
         assert deleted_element.json() == {"deleted": True}
         assert client.get("/api/library/workspace").json()["elements"] == []
+        restored_element = client.put(
+            f"/api/library-workspace/elements/{element_id}",
+            json={
+                "element_type": "rectangle",
+                "x": 280,
+                "y": 540,
+                "width": 320,
+                "height": 180,
+                "content": "restored shape",
+            },
+            headers=headers,
+        )
+        assert restored_element.json() == {"updated": True}
+        assert client.get("/api/library/workspace").json()["elements"][0][
+            "element_type"
+        ] == "rectangle"
+        invalid_image = client.post(
+            "/api/library/workspace/elements",
+            json={
+                "element_type": "image",
+                "x": 20,
+                "y": 20,
+                "width": 320,
+                "height": 220,
+                "content": "data:text/html;base64,PGgxPmJhZDwvaDE+",
+            },
+            headers=headers,
+        )
+        assert invalid_image.status_code == 409
         tag = client.post(
             "/api/tags",
             json={"name": "kinetics", "paper_ids": [paper_id], "library_id": library_id},

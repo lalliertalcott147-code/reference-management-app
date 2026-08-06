@@ -535,6 +535,53 @@ CORE_MIGRATIONS = (
             ON library_workspace_elements(workspace_id, id);
         """,
     ),
+    Migration(
+        10,
+        "ppt_workspace_elements",
+        """
+        CREATE TABLE library_workspace_elements_v2 (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL
+                REFERENCES library_workspaces(id) ON DELETE CASCADE,
+            element_type TEXT NOT NULL CHECK(element_type IN (
+                'text', 'rectangle', 'ellipse', 'line', 'arrow', 'image'
+            )),
+            x REAL NOT NULL CHECK(x >= 0),
+            y REAL NOT NULL CHECK(y >= 0),
+            width REAL NOT NULL CHECK(width >= 20),
+            height REAL NOT NULL CHECK(height >= 4),
+            rotation REAL NOT NULL DEFAULT 0,
+            content TEXT NOT NULL DEFAULT '',
+            text_color TEXT NOT NULL DEFAULT '#1F3633',
+            fill_color TEXT NOT NULL DEFAULT '#FFFFFF',
+            border_color TEXT NOT NULL DEFAULT '#315F59',
+            border_width REAL NOT NULL DEFAULT 2 CHECK(border_width >= 0),
+            font_size REAL NOT NULL DEFAULT 18 CHECK(font_size >= 8),
+            font_family TEXT NOT NULL DEFAULT 'Microsoft YaHei',
+            text_align TEXT NOT NULL DEFAULT 'left'
+                CHECK(text_align IN ('left', 'center', 'right')),
+            z_index INTEGER NOT NULL DEFAULT 1,
+            group_id TEXT,
+            deleted_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        INSERT INTO library_workspace_elements_v2(
+            id, workspace_id, element_type, x, y, width, height,
+            content, text_color, fill_color, border_color,
+            created_at, updated_at
+        )
+        SELECT id, workspace_id, element_type, x, y, width, height,
+               content, color,
+               CASE WHEN element_type='text' THEN '#FFFEF7' ELSE 'transparent' END,
+               color, created_at, updated_at
+        FROM library_workspace_elements;
+        DROP TABLE library_workspace_elements;
+        ALTER TABLE library_workspace_elements_v2 RENAME TO library_workspace_elements;
+        CREATE INDEX library_workspace_elements_workspace_idx
+            ON library_workspace_elements(workspace_id, deleted_at, z_index, id);
+        """,
+    ),
 )
 
 
