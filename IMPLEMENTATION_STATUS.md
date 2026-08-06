@@ -56,4 +56,4 @@ M0～M12 的产品代码、自动化测试、Windows 打包脚本、安装包和
 - 发布物属于本地构建输出或托管平台 Release 附件，不纳入 Git 源码提交。
 - 目录：`build/release/CatalystLiterature-0.1.0/`
 - ZIP：`build/release/CatalystLiterature-0.1.0-windows-x64.zip`
-- ZIP SHA-256：`510265015073916CC209E272360006389B2D05494DA3BEE77A2FDDB8DF05CCCE`
+- ZIP SHA-256：`2528ED084D6F20F4C3A73047E15BCA3B4EEC6BE307EABA71207C8A452F305FBF`
